@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 10 136 136" width="136" height="136" role="img" aria-label="아델리.ai"><defs><clipPath id="xf"><circle cx="70" cy="82" r="36"/></clipPath></defs>
+  <polygon points="70,78 70,12 127.16,45" fill="#eaf8fe" stroke="rgba(255,255,255,.5)" stroke-width="1"/><polygon points="70,78 127.16,45 127.16,111" fill="#bfe6f7" stroke="rgba(255,255,255,.5)" stroke-width="1"/><polygon points="70,78 127.16,111 70,144" fill="#8fd1ec" stroke="rgba(255,255,255,.5)" stroke-width="1"/><polygon points="70,78 70,144 12.84,111" fill="#cdeefb" stroke="rgba(255,255,255,.5)" stroke-width="1"/><polygon points="70,78 12.84,111 12.84,45" fill="#6fbfe6" stroke="rgba(255,255,255,.5)" stroke-width="1"/><polygon points="70,78 12.84,45 70,12" fill="#a9ddf1" stroke="rgba(255,255,255,.5)" stroke-width="1"/>
+  <polygon points="70,12 127.16,45 127.16,111 70,144 12.84,111 12.84,45" fill="none" stroke="#4f9fcf" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="70" cy="82" r="36" fill="#1a2436"/>
+  <g clip-path="url(#xf)"><ellipse cx="70" cy="116" rx="30" ry="22" fill="#fff"/></g>
+  <circle cx="57" cy="76" r="10" fill="#fff"/><circle cx="83" cy="76" r="10" fill="#fff"/>
+  <circle cx="58" cy="77" r="5.4" fill="#0b1220"/><circle cx="84" cy="77" r="5.4" fill="#0b1220"/>
+  <circle cx="60" cy="74.5" r="1.9" fill="#fff"/><circle cx="86" cy="74.5" r="1.9" fill="#fff"/>
+  <polygon points="64,90 76,90 70,99" fill="#ec7a5f"/>
+  <ellipse cx="47" cy="92" rx="5" ry="3" fill="#f6a894" opacity=".6"/><ellipse cx="93" cy="92" rx="5" ry="3" fill="#f6a894" opacity=".6"/></svg>
