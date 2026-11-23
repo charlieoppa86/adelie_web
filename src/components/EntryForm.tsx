@@ -86,7 +86,7 @@ export function EntryForm() {
         type="submit"
         className="mt-6 w-full rounded-full bg-brand-500 py-3.5 font-extrabold text-white shadow-brand transition hover:bg-brand-400 active:scale-[.98]"
       >
-        빙하 오피스 입장하기
+        스터디룸 입장하기
       </button>
     </form>
   );

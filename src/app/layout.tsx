@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "아델리 빙하 오피스", template: "%s · 아델리 빙하 오피스" },
-  description: "선생 아델리와 학생 아델리가 함께 공부하는 빙하 위의 가상 공부방",
+  title: { default: "남극 AI 스터디룸", template: "%s · 남극 AI 스터디룸" },
+  description: "선생 아델리와 학생 아델리가 함께 AI를 공부하는 남극 위의 가상 스터디룸",
   icons: {
     icon: [{ url: "/brand/favicon.svg", type: "image/svg+xml" }],
     apple: "/brand/apple-touch-icon.png",

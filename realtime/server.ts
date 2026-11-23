@@ -1,5 +1,5 @@
 /**
- * 아델리 빙하 오피스 — 실시간 서버 (로컬 개발용, 메모리 저장)
+ * 남극 AI 스터디룸 — 실시간 서버 (로컬 개발용, 메모리 저장)
  * 접속·위치·자리·출석 상태를 관리하고 브로드캐스트합니다.
  * 실행: npm run dev (Next와 함께) 또는 npm run realtime
  */
@@ -162,7 +162,7 @@ io.on("connection", (socket: IoSocket) => {
 
     const dup = [...players.values()].find((p) => p.id !== id && p.name.toLowerCase() === name.toLowerCase());
     if (dup) {
-      socket.emit("join:error", { message: `'${name}' 펭귄이 이미 오피스에 있어요. 다른 닉네임을 써주세요.` });
+      socket.emit("join:error", { message: `'${name}' 펭귄이 이미 스터디룸에 있어요. 다른 닉네임을 써주세요.` });
       return;
     }
 
@@ -396,7 +396,7 @@ io.on("connection", (socket: IoSocket) => {
     const until = moderation.kick(key);
     const target = [...players.values()].find((o) => moderation.keyOf(o.name) === key);
     if (target) {
-      emitTo(target.id, "kicked", { message: "신고가 누적돼 운영진이 오피스에서 퇴장시켰어요.", until });
+      emitTo(target.id, "kicked", { message: "신고가 누적돼 운영진이 스터디룸에서 퇴장시켰어요.", until });
       const sid = socketOf.get(target.id);
       setTimeout(() => sid && io.sockets.sockets.get(sid)?.disconnect(true), 150);
     }

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { loadProfile, realtimeUrl, tabPlayerId } from "@/lib/localProfile";
-import { SEATS, WORLD, isBlocked } from "@/shared/officeMap";
+import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
 import {
   BUBBLE_MS,
@@ -20,6 +20,7 @@ import { AdminPanel } from "./AdminPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { Avatar, LABEL_Z, type AvatarPart, type Bubble } from "./Avatar";
 import { Composer, type ComposerHandle } from "./Composer";
+import { Landscape } from "./Landscape";
 import { MapFloor, MapProps } from "./MapArt";
 import { IncomingRequestCard, OutgoingRequestCard, SecretChatPanel } from "./SecretChat";
 import { useSecretChat } from "./useSecretChat";
@@ -33,7 +34,7 @@ const SEAT_LABEL = { desk: "집중 개인석", standing: "스탠딩석", cafe: "
 
 const SPEED = 210; // px/s
 const SEND_EVERY = 66; // ms (~15Hz)
-const MIN_SCALE = 0.6;
+const MIN_SCALE = 0.45;
 const MAX_SCALE = 1.25;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
@@ -238,8 +239,10 @@ export function Office() {
     const ro = new ResizeObserver(() => {
       const vw = vp.clientWidth;
       const vh = vp.clientHeight;
-      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(vw / WORLD.w, vh / WORLD.h)));
+      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(vw / LANDSCAPE.w, vh / LANDSCAPE.h)));
       Object.assign(cam.current, { vw, vh, s });
+      // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
+      worldRef.current?.style.setProperty("--ui", String(Math.min(1.7, Math.max(1, 0.85 / s))));
     });
     ro.observe(vp);
     return () => ro.disconnect();
@@ -354,10 +357,12 @@ export function Office() {
       const c = cam.current;
       const world = worldRef.current;
       if (world && me && c.vw) {
-        const W = WORLD.w * c.s;
-        const H = WORLD.h * c.s;
-        const ox = W <= c.vw ? (c.vw - W) / 2 : Math.min(0, Math.max(c.vw - W, c.vw / 2 - me.x * c.s));
-        const oy = H <= c.vh ? (c.vh - H) / 2 : Math.min(0, Math.max(c.vh - H, c.vh / 2 - me.y * c.s));
+        const W = LANDSCAPE.w * c.s;
+        const H = LANDSCAPE.h * c.s;
+        const mx = me.x + CAMP_OFFSET.x;
+        const my = me.y + CAMP_OFFSET.y;
+        const ox = W <= c.vw ? (c.vw - W) / 2 : Math.min(0, Math.max(c.vw - W, c.vw / 2 - mx * c.s));
+        const oy = H <= c.vh ? (c.vh - H) / 2 : Math.min(0, Math.max(c.vh - H, c.vh / 2 - my * c.s));
         c.ox += (ox - c.ox) * Math.min(1, dt * 8);
         c.oy += (oy - c.oy) * Math.min(1, dt * 8);
         world.style.transform = `translate3d(${c.ox.toFixed(1)}px, ${c.oy.toFixed(1)}px, 0) scale(${c.s})`;
@@ -374,7 +379,8 @@ export function Office() {
     if (!vp) return null;
     const r = vp.getBoundingClientRect();
     const c = cam.current;
-    return { x: (clientX - r.left - c.ox) / c.s, y: (clientY - r.top - c.oy) / c.s };
+    // 화면 → 풍경 좌표 → 공부 캠프 좌표
+    return { x: (clientX - r.left - c.ox) / c.s - CAMP_OFFSET.x, y: (clientY - r.top - c.oy) / c.s - CAMP_OFFSET.y };
   };
 
   const walkTo = (target: Pt, seatId?: string) => {
@@ -439,9 +445,7 @@ export function Office() {
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/brand/logo-mark.svg" alt="" width={28} height={28} />
-          <span className="font-extrabold">
-            빙하 오피스<span className="text-brand-400">.</span>
-          </span>
+          <span className="font-extrabold">남극 AI 스터디룸</span>
         </Link>
         <span
           className={`ml-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
@@ -495,7 +499,7 @@ export function Office() {
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* 오피스 뷰 */}
+          {/* 스터디룸 뷰 */}
           <div
             ref={viewportRef}
             className="relative min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden bg-[#041a2e]"
@@ -506,49 +510,55 @@ export function Office() {
               setSelectedId(null);
             }}
           >
-            <div ref={worldRef} className="absolute left-0 top-0 origin-top-left" style={{ width: WORLD.w, height: WORLD.h }}>
-              <MapFloor />
-              <MapProps />
-              {/* 매시간 날씨 (펭귄 위 · 이름표 아래) */}
+            <div ref={worldRef} className="absolute left-0 top-0 origin-top-left" style={{ width: LANDSCAPE.w, height: LANDSCAPE.h }}>
+              {/* 남극 풍경 (빙하 · 설산 · 바다 · 동물) */}
+              <Landscape />
+              {/* 매시간 날씨 — 풍경 전체 (펭귄 위 · 이름표 아래) */}
               <div className="pointer-events-none absolute inset-0" style={{ zIndex: LABEL_Z - 100 }}>
                 <WeatherLayer weather={weather} />
               </div>
 
-              {/* 빈 자리 */}
-              {SEATS.map((seat) => {
-                const who = occupied.get(seat.id);
-                if (who) return null;
-                return (
-                  <button
-                    key={seat.id}
-                    type="button"
-                    title="여기 앉기"
-                    aria-label={`빈 자리에 앉기 (${SEAT_LABEL[seat.kind]})`}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => walkTo({ x: seat.x, y: seat.y }, seat.id)}
-                    className="group absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-                    style={{ left: seat.x, top: seat.y - 4, width: 40, height: 22, zIndex: 1500 }}
-                  >
-                    <span className="absolute inset-0 rounded-[50%] border-2 border-dashed border-brand-400/70 bg-white/35 transition group-hover:scale-110 group-hover:border-solid group-hover:bg-aurora-green/50" />
-                  </button>
-                );
-              })}
+              {/* 공부 캠프: z-index 없이 배치해 안의 펭귄 · 소품이 날씨 · 이름표와 함께 깊이 정렬됨 */}
+              <div className="absolute" style={{ left: CAMP_OFFSET.x, top: CAMP_OFFSET.y, width: WORLD.w, height: WORLD.h }}>
+                <MapFloor />
+                <MapProps />
 
-              {list.map((p) => (
-                <Avatar
-                  key={p.id}
-                  player={p}
-                  isSelf={p.id === selfId}
-                  jumping={!!jumping[p.id]}
-                  selected={p.id === selectedId}
-                  bubble={bubbles[p.id]}
-                  called={calledIds.has(p.id)}
-                  locked={dm.partnerOf.has(p.id)}
-                  selfName={me?.name}
-                  setEl={setEl}
-                  onSelect={setSelectedId}
-                />
-              ))}
+                {/* 빈 자리 */}
+                {SEATS.map((seat) => {
+                  const who = occupied.get(seat.id);
+                  if (who) return null;
+                  return (
+                    <button
+                      key={seat.id}
+                      type="button"
+                      title="여기 앉기"
+                      aria-label={`빈 자리에 앉기 (${SEAT_LABEL[seat.kind]})`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => walkTo({ x: seat.x, y: seat.y }, seat.id)}
+                      className="group absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left: seat.x, top: seat.y - 4, width: 40, height: 22, zIndex: 1500 }}
+                    >
+                      <span className="absolute inset-0 rounded-[50%] border-2 border-dashed border-brand-400/70 bg-white/35 transition group-hover:scale-110 group-hover:border-solid group-hover:bg-aurora-green/50" />
+                    </button>
+                  );
+                })}
+
+                {list.map((p) => (
+                  <Avatar
+                    key={p.id}
+                    player={p}
+                    isSelf={p.id === selfId}
+                    jumping={!!jumping[p.id]}
+                    selected={p.id === selectedId}
+                    bubble={bubbles[p.id]}
+                    called={calledIds.has(p.id)}
+                    locked={dm.partnerOf.has(p.id)}
+                    selfName={me?.name}
+                    setEl={setEl}
+                    onSelect={setSelectedId}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* 선택한 펭귄 카드 */}
@@ -655,7 +665,7 @@ export function Office() {
 
             {conn === "connecting" && (
               <div className="absolute inset-0 z-30 grid place-items-center bg-night/70 text-sm text-ink-200">
-                빙하 오피스에 들어가는 중…
+                남극 AI 스터디룸에 들어가는 중…
               </div>
             )}
           </div>

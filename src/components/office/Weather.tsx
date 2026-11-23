@@ -5,6 +5,7 @@
  * 효과는 CSS 그라디언트 + transform/opacity 애니메이션만 써서 가볍게 유지합니다.
  */
 import { useEffect, useRef, useState } from "react";
+import { LANDSCAPE } from "@/shared/officeMap";
 import { WEATHERS, WEATHER_ORDER, nextChangeAt, weatherAt, type WeatherId } from "@/shared/weather";
 
 const FADE_MS = 3000;
@@ -111,13 +112,13 @@ function Effect({ id }: { id: WeatherId }) {
       return (
         <>
           <div className="wx-sun absolute inset-0" />
-          <svg className="absolute inset-0" width="1600" height="1000" viewBox="0 0 1600 1000" aria-hidden="true">
+          <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${LANDSCAPE.w} ${LANDSCAPE.h}`} aria-hidden="true">
             {/* 햇무리와 환일(선독) */}
-            <circle cx="1380" cy="36" r="22" fill="#fffbe6" opacity=".9" />
-            <circle cx="1380" cy="36" r="92" fill="none" stroke="#fff6d1" strokeWidth="6" opacity=".45" />
-            <circle cx="1380" cy="36" r="98" fill="none" stroke="#f6a894" strokeWidth="2" opacity=".35" />
-            <circle cx="1288" cy="36" r="8" fill="#fff" opacity=".85" className="twinkle" />
-            <circle cx="1472" cy="36" r="8" fill="#fff" opacity=".85" className="twinkle" style={{ animationDelay: ".8s" }} />
+            <circle cx="1840" cy="40" r="22" fill="#fffbe6" opacity=".9" />
+            <circle cx="1840" cy="40" r="92" fill="none" stroke="#fff6d1" strokeWidth="6" opacity=".45" />
+            <circle cx="1840" cy="40" r="98" fill="none" stroke="#f6a894" strokeWidth="2" opacity=".35" />
+            <circle cx="1748" cy="40" r="8" fill="#fff" opacity=".85" className="twinkle" />
+            <circle cx="1932" cy="40" r="8" fill="#fff" opacity=".85" className="twinkle" style={{ animationDelay: ".8s" }} />
           </svg>
           <div className="wx-diamond absolute inset-0" />
           <div className="wx-diamond wx-diamond-2 absolute inset-0" />

@@ -122,27 +122,29 @@ export const Avatar = memo(function Avatar({
         aria-hidden="true"
       >
         {bubble ? (
-          <div
-            key={bubble.msg.id}
-            className={`bubble-pop absolute left-0 w-max max-w-[220px] rounded-2xl px-3 py-2 text-[13px] font-semibold leading-snug text-ink-900 shadow-lg ${
-              bubble.mentionsMe ? "bg-coral-50 ring-2 ring-coral-400" : "bg-white"
-            }`}
-            style={{ bottom: FOOT_Y + 10 }}
-          >
-            <p className="line-clamp-4 whitespace-pre-wrap break-words">
-              <MentionText text={bubble.msg.text} mentions={bubble.msg.mentions} selfName={selfName} />
-            </p>
-            <span
-              aria-hidden="true"
-              className={`absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 ${bubble.mentionsMe ? "bg-coral-50" : "bg-white"}`}
-            />
+          // 바깥: 화면 배율 보정(발 위 기준점에서 확대) · 안쪽: 팝 애니메이션 + 가운데 정렬
+          <div className="absolute left-0 w-0" style={{ bottom: FOOT_Y + 10, scale: "var(--ui, 1)", transformOrigin: "0 100%" }}>
+            <div
+              key={bubble.msg.id}
+              className={`bubble-pop relative w-max max-w-[220px] rounded-2xl px-3 py-2 text-[13px] font-semibold leading-snug text-ink-900 shadow-lg ${
+                bubble.mentionsMe ? "bg-coral-50 ring-2 ring-coral-400" : "bg-white"
+              }`}
+            >
+              <p className="line-clamp-4 whitespace-pre-wrap break-words">
+                <MentionText text={bubble.msg.text} mentions={bubble.msg.mentions} selfName={selfName} />
+              </p>
+              <span
+                aria-hidden="true"
+                className={`absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 ${bubble.mentionsMe ? "bg-coral-50" : "bg-white"}`}
+              />
+            </div>
           </div>
         ) : (
           <span
             className={`absolute h-5 -translate-x-1/2 whitespace-nowrap rounded-full px-2 text-[11px] font-bold leading-5 text-white shadow ${
               locked ? "bg-coral-600/90" : "bg-ink-900/75"
             }`}
-            style={{ top: -FOOT_Y - 22 }}
+            style={{ top: -FOOT_Y - 22, scale: "var(--ui, 1)", transformOrigin: "50% 100%" }}
           >
             {called ? "📣 부르는 중" : locked ? "🔒 비밀 대화 중" : `${status.emoji} ${status.label}`}
           </span>
@@ -150,6 +152,7 @@ export const Avatar = memo(function Avatar({
         <span
           onPointerDown={stop}
           onClick={select}
+          style={{ scale: "var(--ui, 1)", transformOrigin: "50% 0" }}
           className={`pointer-events-auto absolute top-0.5 -translate-x-1/2 cursor-pointer whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-extrabold shadow ${
             isSelf
               ? "bg-coral-500 text-white"

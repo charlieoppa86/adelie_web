@@ -13,7 +13,7 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
-/** 실시간 출석부 — 지금 오피스에 있는 펭귄과 오늘의 공부 시간 */
+/** 실시간 출석부 — 지금 스터디룸에 있는 펭귄과 오늘의 공부 시간 */
 export function AttendancePanel({ players, selfId, selectedId, clockOffset, onSelect }: Props) {
   // 현재 시각은 마운트 후에만 읽음 (프리렌더 시점의 값이 굳지 않도록)
   const [now, setNow] = useState<number | null>(null);

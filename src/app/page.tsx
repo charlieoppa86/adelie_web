@@ -17,13 +17,13 @@ export default function Home() {
       </div>
 
       <h1 className="mt-8 text-center text-4xl font-extrabold leading-tight sm:text-5xl">
-        빙하 위{" "}
+        남극{" "}
         <span className="bg-gradient-to-r from-[#6cd0f5] via-aurora-green to-[#a99cff] bg-clip-text text-transparent">
-          공부 오피스
+          AI 스터디룸
         </span>
       </h1>
       <p className="mt-4 max-w-md text-center text-ink-300">
-        선생 아델리와 학생 아델리가 함께 모여 공부해요. 누가 출석했는지 실시간으로 보고, 말풍선으로 대화해요.
+        선생 아델리와 학생 아델리가 남극 빙붕 위에 모여 AI를 공부해요. 누가 출석했는지 실시간으로 보고, 말풍선으로 대화해요.
       </p>
 
       {/* 펭귄 미리보기: 선생 1 + 학생 3 */}

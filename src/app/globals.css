@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   아델리 빙하 오피스 — 디자인 토큰 (랜딩 adelie_landing/assets/css/style.css 기준)
+   남극 AI 스터디룸 — 디자인 토큰 (랜딩 adelie_landing/assets/css/style.css 기준)
    ============================================================ */
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
@@ -166,7 +166,7 @@ body {
 }
 
 /* ============================================================
-   오피스 장식 애니메이션 (가벼운 transform/opacity만)
+   스터디룸 장식 애니메이션 (가벼운 transform/opacity만)
    ============================================================ */
 .twinkle { animation: twinkle 2.4s ease-in-out infinite alternate; }
 .bob { animation: bob 4.5s ease-in-out infinite; }
@@ -206,6 +206,27 @@ body {
 @keyframes aurora-sway { from { transform: translateX(-30px); opacity: 0.75; } to { transform: translateX(30px); opacity: 1; } }
 .whale { transform-box: fill-box; transform-origin: 50% 100%; animation: whale 11s ease-in-out infinite; }
 @keyframes whale { 0%, 60%, 100% { transform: translateY(14px); opacity: 0; } 70%, 88% { transform: translateY(0); opacity: 1; } }
+
+/* 남극 풍경의 동물들 */
+.orca-swim { animation: orca-swim 38s linear infinite; }
+@keyframes orca-swim {
+  0% { transform: translateX(700px); opacity: 0; }
+  6%, 92% { opacity: 1; }
+  100% { transform: translateX(-800px); opacity: 0; }
+}
+.bird-glide { animation: bird-glide 34s linear infinite; }
+.bird-glide-2 { animation-duration: 46s; animation-delay: -12s; }
+.bird-glide-3 { animation-duration: 58s; animation-delay: -30s; }
+@keyframes bird-glide {
+  0% { transform: translate(500px, 20px); opacity: 0; }
+  8%, 90% { opacity: 1; }
+  50% { transform: translate(-100px, -20px); }
+  100% { transform: translate(-700px, 10px); opacity: 0; }
+}
+.spout { animation: spout 6s ease-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes spout { 0%, 55%, 100% { opacity: 0; transform: scaleY(0.3); } 65% { opacity: 1; transform: scaleY(1); } 85% { opacity: 0.4; } }
+.chick-wiggle { animation: chick-wiggle 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes chick-wiggle { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
 
 /* ============================================================
    매시간 날씨 효과
@@ -308,7 +329,7 @@ body {
 @keyframes wx-emoji { 0%, 100% { transform: rotate(0) scale(1); } 30% { transform: rotate(-14deg) scale(1.25); } 60% { transform: rotate(10deg) scale(1.1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .dm-pop, .wx-in, .wx-out, .wx-sun, .wx-blizzard, .wx-wind, .wx-aurora, .wx-stars, .wx-fog, .wx-diamond, .wx-banner-emoji { animation: none !important; }
+  .orca-swim, .bird-glide, .spout, .chick-wiggle, .dm-pop, .wx-in, .wx-out, .wx-sun, .wx-blizzard, .wx-wind, .wx-aurora, .wx-stars, .wx-fog, .wx-diamond, .wx-banner-emoji { animation: none !important; }
   .wx-banner { animation: wx-in 0.2s both; }
   .twinkle, .bob, .fish-jump, .steam, .bubble-pop, .called-ring, .snowfall, .aurora-sway, .whale { animation: none !important; }
   .fish-jump { opacity: 0; }

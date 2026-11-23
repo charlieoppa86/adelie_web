@@ -12,7 +12,7 @@ const CLOSE_MSG: Record<DmCloseReason, { mine: (n: string) => string; theirs: (n
   timeout: { mine: (n) => `${n} 님의 답이 없어 신청이 만료됐어요`, theirs: (n) => `${n} 님의 신청이 만료됐어요` },
   busy: { mine: (n) => `${n} 님은 지금 다른 비밀 대화 중이에요`, theirs: () => "다른 비밀 대화가 시작돼 신청이 닫혔어요" },
   cancelled: { mine: () => "비밀 대화 신청을 취소했어요", theirs: (n) => `${n} 님이 신청을 취소했어요` },
-  offline: { mine: (n) => `${n} 님이 오피스를 나갔어요`, theirs: (n) => `${n} 님이 오피스를 나갔어요` },
+  offline: { mine: (n) => `${n} 님이 스터디룸을 나갔어요`, theirs: (n) => `${n} 님이 스터디룸을 나갔어요` },
 };
 
 /** 비밀 대화 상태 + 소켓 이벤트 처리. bind(socket)은 연결할 때 한 번 호출 */

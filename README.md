@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# adelie_web
 
-## Getting Started
+**남극 AI 스터디룸**: 선생 아델리와 학생 아델리가 남극 빙붕 위에 펭귄으로 모여 AI를 함께 공부하는 실시간 가상 공간입니다.
 
-First, run the development server:
+- 공부 캠프 구역: 집중 개인석 · 스탠딩석 · 카페석. 둘레는 빙하와 남극 동물이 사는 풍경이에요.
+- 실시간 접속과 출석부, 공부 시간을 보여줘요.
+- 말풍선 대화와 `@닉네임` 태그를 쓸 수 있어요.
+- 1:1 비밀 대화는 신청하고 상대가 수락하면 시작돼요. 대화 중인 두 펭귄만 내용을 볼 수 있어요.
+- 신고가 서로 다른 2명 이상에게서 들어오면 관리자에게 알림이 가고, 관리자가 퇴장시킬 수 있어요.
+- 날씨가 매시간 바뀌어요: 맑음, 함박눈, 눈보라, 오로라 밤, 해무, 다이아몬드 더스트.
+
+## 실행
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # Next(3000) + 실시간 서버(3001)
+npm run bots         # (선택) 테스트용 봇 펭귄
+npm run test:dm      # 비밀 대화 서버 검증
+npm run test:report  # 신고·퇴장 정책 검증
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 에서 닉네임과 역할을 정해 입장해요. 로그인은 마지막 단계에서 붙일 예정이에요.
+관리자 닉네임은 환경변수로 지정해요: `ADMIN_NAMES=운영자 npm run dev`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 구조
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| 경로 | 내용 |
+|---|---|
+| `src/app` | 입장 화면(`/`), 스터디룸(`/office`) |
+| `src/components/office` | 맵·풍경 그림, 아바타, 입력창, 비밀 대화, 관리자 패널, 날씨 |
+| `src/shared` | 클라이언트와 서버가 함께 쓰는 맵·규약·길찾기·날씨 |
+| `realtime` | Socket.IO 실시간 서버, 신고·퇴장 기록 |
+| `scripts` | 봇과 서버 검증 스크립트 |
+| `docs/ROADMAP.md` | 구현 로드맵과 결정 사항 |

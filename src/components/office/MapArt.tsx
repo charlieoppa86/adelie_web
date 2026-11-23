@@ -24,25 +24,6 @@ export const MapFloor = memo(function MapFloor() {
   return (
     <svg className="absolute inset-0" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
       <defs>
-        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#061a30" />
-          <stop offset="1" stopColor="#04223a" />
-        </linearGradient>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#050f22" />
-          <stop offset="1" stopColor="#0b2340" />
-        </linearGradient>
-        <linearGradient id="aurora-g" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#5ff2c1" stopOpacity="0" />
-          <stop offset=".3" stopColor="#5ff2c1" stopOpacity=".55" />
-          <stop offset=".65" stopColor="#3fd0e0" stopOpacity=".4" />
-          <stop offset="1" stopColor="#8b7bff" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="aurora-p" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#f6a894" stopOpacity="0" />
-          <stop offset=".5" stopColor="#c58bff" stopOpacity=".35" />
-          <stop offset="1" stopColor="#5ff2c1" stopOpacity="0" />
-        </linearGradient>
         <linearGradient id="cliff" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#e6f6fd" />
           <stop offset=".35" stopColor="#a9ddf1" />
@@ -78,82 +59,7 @@ export const MapFloor = memo(function MapFloor() {
         </pattern>
       </defs>
 
-      {/* ---- 남극해 ---- */}
-      <rect width={w} height={h} fill="url(#sea)" />
-      {/* 유빙 조각들 */}
-      {[
-        [20, 250, 16],
-        [52, 290, 10],
-        [30, 420, 12],
-        [58, 470, 8],
-        [14, 690, 10],
-        [44, 760, 14],
-        [24, 900, 9],
-        [1548, 260, 12],
-        [1580, 300, 8],
-        [1560, 430, 15],
-        [1534, 560, 9],
-        [1578, 640, 11],
-        [1550, 780, 13],
-        [1584, 930, 9],
-      ].map(([x, y, r], i) => (
-        <g key={i} className="bob" style={{ animationDelay: `${(i % 5) * 0.7}s` }}>
-          <ellipse cx={x} cy={y + 3} rx={r} ry={r * 0.45} fill="#57b8e0" opacity=".35" />
-          <ellipse cx={x} cy={y} rx={r} ry={r * 0.45} fill="#eaf6fb" />
-        </g>
-      ))}
-      {/* 탁상형 빙산 */}
-      <g className="bob" style={{ animationDelay: "1.1s" }}>
-        <path d="M1528 168H1596V214H1534Z" fill="#a9ddf1" />
-        <path d="M1524 160L1600 156V172L1528 176Z" fill="#f4fbfe" />
-        <path d="M1540 176V212M1562 176V214M1582 174V210" stroke="#7cc4e4" strokeWidth="2" />
-      </g>
-      {/* 유빙 위 물개 */}
-      <g className="bob" style={{ animationDelay: ".4s" }}>
-        <ellipse cx="40" cy="606" rx="34" ry="12" fill="#eaf6fb" />
-        <ellipse cx="40" cy="610" rx="34" ry="12" fill="#57b8e0" opacity=".25" />
-        <path d="M18 600Q22 586 40 586Q58 588 62 600Q50 604 18 600Z" fill="#7d8ea3" />
-        <circle cx="56" cy="592" r="7" fill="#8a9bb0" />
-        <circle cx="58" cy="590" r="1.6" fill="#0b1220" />
-        <path d="M16 600l-8 -4l2 8z" fill="#7d8ea3" />
-      </g>
-      {/* 고래 꼬리 */}
-      <g className="whale">
-        <path d="M1556 872q-4 -12 -16 -18q10 0 16 8q6 -8 16 -8q-12 6 -16 18z" fill="#2b3f57" />
-        <path d="M1540 878q16 -6 32 0" stroke="#8fd1ec" strokeWidth="2" fill="none" opacity=".6" />
-      </g>
-      <g className="fish-jump">
-        <path d="M24 360q8 -8 16 0q-8 8 -16 0zM24 360l-8 -6v12z" fill="#ffd66b" />
-      </g>
-
-      {/* ---- 하늘 · 오로라 · 설산 (빙벽 너머) ---- */}
-      <rect x="78" y="0" width="1444" height="120" fill="url(#sky)" />
-      <g className="aurora-sway">
-        <path d="M60 46Q300 0 560 34T1060 20T1560 40V70Q1300 44 1060 56T560 64T60 80Z" fill="url(#aurora-g)" />
-        <path d="M200 24Q480 -4 760 22T1400 10V30Q1080 30 760 40T200 44Z" fill="url(#aurora-p)" />
-      </g>
-      {[
-        [140, 14],
-        [310, 8],
-        [520, 18],
-        [690, 6],
-        [870, 12],
-        [1030, 8],
-        [1210, 16],
-        [1390, 6],
-        [1470, 22],
-      ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={i % 3 ? 1.3 : 1.9} fill="#fff" className="twinkle" style={{ animationDelay: `${i * 0.5}s` }} />
-      ))}
-      <path
-        d="M78 120L150 56L210 88L290 30L360 80L430 44L500 92L590 26L660 76L740 40L820 86L900 34L980 78L1060 46L1140 90L1230 32L1300 74L1380 42L1450 82L1522 50V120Z"
-        fill="#2b3f57"
-      />
-      <path
-        d="M150 56L136 70L150 66L162 72ZM290 30L270 50L290 44L306 52ZM590 26L570 46L590 40L606 48ZM900 34L882 52L900 46L916 54ZM1230 32L1212 50L1230 44L1246 52Z"
-        fill="#eaf6fb"
-      />
-
+      {/* 바다 · 하늘 · 설산 · 동물은 Landscape(전체 풍경)에서 그림 */}
       {/* ---- 빙붕 (옆면 · 윗면 눈밭) ---- */}
       <path d="M78 214Q78 190 104 188H1496Q1522 190 1522 214V950Q1522 990 1484 992H116Q78 990 78 950Z" fill="#4aa3d4" />
       <path d="M92 972H1508M100 982H1500" stroke="#2f86b8" strokeWidth="2" opacity=".5" />
@@ -688,8 +594,3 @@ export const MapProps = memo(function MapProps() {
     </>
   );
 });
-
-/** 맵 전체에 내리는 눈 (배경 이미지 하나 + CSS 애니메이션) */
-export function Snowfall() {
-  return <div aria-hidden="true" className="snowfall pointer-events-none absolute inset-0" />;
-}
