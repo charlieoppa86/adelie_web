@@ -1,0 +1,28 @@
+# Firebase App Hosting 설정 — 빌드·실행 시 쓰는 환경 변수
+# NEXT_PUBLIC_* 는 빌드할 때 코드에 박히므로 BUILD 에도 있어야 합니다. (공개 식별값이라 비밀 아님)
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyDwqOxuXw_7X2NFMHAs1MYPW7Yekqj-61k
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: adelie-8e417.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: adelie-8e417
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: adelie-8e417.firebasestorage.app
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "705019147403"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:705019147403:web:7afafcb5376c048dd8508e
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    value: https://adelie-8e417-default-rtdb.asia-southeast1.firebasedatabase.app
+    availability: [BUILD, RUNTIME]
