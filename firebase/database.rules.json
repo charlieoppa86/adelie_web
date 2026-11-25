@@ -62,6 +62,17 @@
           }
         },
 
+        "bubbles": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['id', 'text', 'at']) && (!data.exists() || newData.child('at').val() >= data.child('at').val() + 1000)",
+            "id": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+            "at": { ".validate": "newData.val() === now" },
+            "$other": { ".validate": false }
+          }
+        },
+
         "emotes": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",

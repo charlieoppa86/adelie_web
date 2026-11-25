@@ -12,6 +12,7 @@ import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/office
 import { findPath } from "@/shared/pathfind";
 import {
   BUBBLE_MS,
+  findMentions,
   studyMsNow,
   type ClientToServerEvents,
   type ModerationFlag,
@@ -127,7 +128,7 @@ export function Office() {
     });
   }, []);
 
-  /* ---------- 입장: 로그인 확인 → Realtime Database(접속·위치·자리) + Socket.IO(말풍선·비밀 대화·신고) ---------- */
+  /* ---------- 입장: 로그인 확인 → Realtime Database(접속·위치·자리·말풍선) + Socket.IO(비밀 대화·신고) ---------- */
   useEffect(() => {
     let room: RoomHandle | null = null;
     let socket: IoClient | null = null;
@@ -166,6 +167,27 @@ export function Office() {
           setJumping((j) => ({ ...j, [pid]: true }));
           window.setTimeout(() => setJumping((j) => ({ ...j, [pid]: false })), 800);
         },
+        bubble: ({ id: msgId, playerId, text, at }) => {
+          const sender = playersRef.current[playerId];
+          if (!sender) return;
+          const msg = { id: msgId, playerId, name: sender.name, text, at, mentions: findMentions(text, Object.values(playersRef.current), playerId) };
+          const self = selfIdRef.current;
+          const mentionsMe = !!self && playerId !== self && msg.mentions.some((m) => m.id === self);
+          setBubbles((b) => (b[playerId]?.msg.id === msgId ? b : { ...b, [playerId]: { msg, mentionsMe } }));
+          window.setTimeout(() => {
+            setBubbles((b) => {
+              if (b[playerId]?.msg.id !== msgId) return b;
+              const rest = { ...b };
+              delete rest[playerId];
+              return rest;
+            });
+          }, BUBBLE_MS);
+          if (mentionsMe && self) {
+            showToast(`📣 ${msg.name} 님이 나를 불렀어요`);
+            setJumping((j) => ({ ...j, [self]: true }));
+            window.setTimeout(() => setJumping((j) => ({ ...j, [self]: false })), 800);
+          }
+        },
         replaced: () => {
           setJoinError("다른 탭이나 기기에서 스터디룸에 들어가서 이 화면은 빠졌어요.");
           socket?.disconnect();
@@ -173,7 +195,7 @@ export function Office() {
       });
       roomRef.current = room;
 
-      // 말풍선·비밀 대화·신고는 아직 Socket.IO 서버 (F3~F5에서 옮김). 펭귄 ID = 계정 uid
+      // 비밀 대화·신고는 아직 Socket.IO 서버 (F4~F5에서 옮김). 펭귄 ID = 계정 uid
       socket = io(realtimeUrl(), { transports: ["websocket"] });
       socketRef.current = socket;
       const s = socket;
@@ -193,24 +215,6 @@ export function Office() {
         setKicked(data);
         s.disconnect();
         void room?.leave();
-      });
-      s.on("chat", (msg) => {
-        const self = selfIdRef.current;
-        const mentionsMe = !!self && msg.playerId !== self && msg.mentions.some((m) => m.id === self);
-        setBubbles((b) => ({ ...b, [msg.playerId]: { msg, mentionsMe } }));
-        window.setTimeout(() => {
-          setBubbles((b) => {
-            if (b[msg.playerId]?.msg.id !== msg.id) return b;
-            const rest = { ...b };
-            delete rest[msg.playerId];
-            return rest;
-          });
-        }, BUBBLE_MS);
-        if (mentionsMe && self) {
-          showToast(`📣 ${msg.name} 님이 나를 불렀어요`);
-          setJumping((j) => ({ ...j, [self]: true }));
-          window.setTimeout(() => setJumping((j) => ({ ...j, [self]: false })), 800);
-        }
       });
     };
 
@@ -440,7 +444,15 @@ export function Office() {
   const me = selfId ? players[selfId] : undefined;
   /** 지금 떠 있는 말풍선에서 @로 불린 펭귄들 */
   const calledIds = useMemo(() => new Set(Object.values(bubbles).flatMap((b) => b.msg.mentions.map((m) => m.id))), [bubbles]);
-  const sendChat = useCallback((text: string) => socketRef.current?.emit("chat", { text }), []);
+  const sendChat = useCallback(
+    (text: string) => {
+      void roomRef.current?.say(text).then((r) => {
+        if (r === "tooFast") showToast("말이 너무 빨라요 🐧 잠시 후 다시 말해주세요.");
+        else if (r === "error") showToast("말을 보내지 못했어요. 연결을 확인해 주세요.");
+      });
+    },
+    [showToast],
+  );
   const selected = selectedId ? players[selectedId] : undefined;
   const isAdmin = me?.role === "admin" || socketAdmin;
 

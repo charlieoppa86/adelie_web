@@ -5,9 +5,10 @@
  *   pos/{uid}      위치 {x, y, d, m} — 초당 몇 번씩 바뀌므로 따로 둬서 전송량을 줄임
  *   seats/{seatId} 앉은 사람 uid — 비어 있을 때만 차지할 수 있음(규칙)
  *   emotes/{uid}   마지막 점프 시각
+ *   bubbles/{uid}  마지막 말풍선 {id, text, at} — 한 펭귄당 한 칸만 써서 대화 기록이 쌓이지 않음 (1초에 1개, 규칙)
  *   attendance/{YYYY-MM-DD}/{uid}  오늘 입장 시각·공부 시간 (다시 들어와도 이어짐)
  *
- * 창을 닫거나 연결이 끊기면 onDisconnect 로 players·pos·emotes·seats 가 자동으로 지워집니다.
+ * 창을 닫거나 연결이 끊기면 onDisconnect 로 players·pos·emotes·bubbles·seats 가 자동으로 지워집니다.
  */
 import {
   get,
@@ -27,13 +28,23 @@ import {
 import { rtdb } from "@/lib/firebase";
 import type { AccountProfile } from "@/lib/account";
 import { SEAT_BY_ID, SPAWN, STUDY_SEAT_KINDS } from "@/shared/officeMap";
-import type { MovePayload, PlayerState } from "@/shared/protocol";
+import { BUBBLE_MS, normalizeChat, type MovePayload, type PlayerState } from "@/shared/protocol";
 
 const ROOM = "rooms/main";
 /** 공부 중일 때 출석 기록에 공부 시간을 저장하는 간격 (창이 갑자기 닫혀도 최대 이만큼만 잃음) */
 const FLUSH_MS = 60_000;
 /** 이보다 오래된 점프 기록은 무시 (입장할 때 예전 점프가 다시 재생되지 않게) */
 const EMOTE_FRESH_MS = 3_000;
+/** 말풍선 간격 (규칙과 같은 값) */
+export const CHAT_GAP_MS = 1_000;
+
+export interface RoomBubble {
+  id: string;
+  playerId: string;
+  text: string;
+  at: number;
+}
+export type SayResult = "ok" | "empty" | "tooFast" | "error";
 
 export interface RoomEvents {
   /** 입장 완료 (재연결 시에도 다시 불림) */
@@ -45,6 +56,8 @@ export interface RoomEvents {
   left: (id: string) => void;
   moved: (id: string, m: MovePayload) => void;
   emote: (id: string) => void;
+  /** 누군가 말함 (내 말 포함) */
+  bubble: (b: RoomBubble) => void;
   /** 같은 계정이 다른 탭(기기)에서 입장해 이 탭은 빠짐 */
   replaced: () => void;
 }
@@ -55,6 +68,7 @@ export interface RoomHandle {
   sit: (seatId: string, dir: 1 | -1) => Promise<boolean>;
   stand: () => void;
   jump: () => void;
+  say: (text: string) => Promise<SayResult>;
   leave: () => Promise<void>;
 }
 
@@ -83,6 +97,10 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   const playerRef = r(`players/${uid}`);
   const posRef = r(`pos/${uid}`);
   const emoteRef = r(`emotes/${uid}`);
+  const bubbleRef = r(`bubbles/${uid}`);
+  /** 내가 자동으로 지우는 노드들 (연결 끊김·다른 탭 이어받기·퇴장 때 함께 처리) */
+  const ownRefs = [playerRef, posRef, emoteRef, bubbleRef];
+  let lastSaid = 0;
 
   let offset = 0;
   const now = () => Date.now() + offset;
@@ -123,7 +141,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
 
   /** 연결될 때마다(처음·재연결) 내 펭귄을 다시 올립니다. 끊기면 서버가 onDisconnect 로 지웠기 때문. */
   async function enter() {
-    await Promise.all([onDisconnect(playerRef).remove(), onDisconnect(posRef).remove(), onDisconnect(emoteRef).remove()]);
+    await Promise.all(ownRefs.map((x) => onDisconnect(x).remove()));
     const t = now();
     const attRef = ref(db, `attendance/${seoulDay(t)}/${uid}`);
     let enteredAt = t;
@@ -138,6 +156,10 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     }
     if (stopped) return;
     seatRef = null;
+    // 예전 탭(같은 계정)이 앉아 있던 자리가 남아 있으면 비움 — 새로 들어온 펭귄은 서 있는 상태로 시작
+    const seats = ((await get(r("seats"))).val() ?? {}) as Record<string, string>;
+    const stale = Object.keys(seats).filter((k) => seats[k] === uid);
+    if (stale.length) await update(ref(db, ROOM), Object.fromEntries(stale.map((k) => [`seats/${k}`, null])));
     await set(attRef, { enteredAt, studyMs });
     myPos = { ...myPos, m: false };
     await set(posRef, myPos);
@@ -197,6 +219,15 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   unsubs.push(onChildAdded(r("emotes"), (s) => onEmote(s.key!, s.val())));
   unsubs.push(onChildChanged(r("emotes"), (s) => onEmote(s.key!, s.val())));
 
+  /* 말풍선 (입장 전에 이미 사라졌어야 할 오래된 말은 무시) */
+  const onBubble = (id: string, v: { id?: unknown; text?: unknown; at?: unknown } | null) => {
+    if (!v || typeof v.text !== "string" || typeof v.at !== "number" || typeof v.id !== "string") return;
+    if (now() - v.at > BUBBLE_MS) return;
+    on.bubble({ id: v.id, playerId: id, text: v.text, at: v.at });
+  };
+  unsubs.push(onChildAdded(r("bubbles"), (s) => onBubble(s.key!, s.val())));
+  unsubs.push(onChildChanged(r("bubbles"), (s) => onBubble(s.key!, s.val())));
+
   /* 공부 중이면 1분마다 출석 기록에 공부 시간 저장 */
   const flushTimer = setInterval(() => {
     if (!stopped && mine?.studySince) saveAttendance(mine.studyMs + Math.max(0, now() - mine.studySince));
@@ -231,7 +262,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   function replacedByOtherTab() {
     // 다른 탭이 내 자리를 이어받음: 이 탭의 onDisconnect 가 그 탭의 펭귄을 지우지 않게 취소
     stopListening();
-    void Promise.all([onDisconnect(playerRef).cancel(), onDisconnect(posRef).cancel(), onDisconnect(emoteRef).cancel()]);
+    void Promise.all(ownRefs.map((x) => onDisconnect(x).cancel()));
     if (seatRef) void onDisconnect(seatRef).cancel();
     on.replaced();
   }
@@ -280,6 +311,21 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
       if (!stopped && entered) set(emoteRef, serverTimestamp()).catch(() => {});
     },
 
+    async say(raw) {
+      const text = normalizeChat(raw);
+      if (!text) return "empty";
+      if (stopped || !entered) return "error";
+      const t = Date.now();
+      if (t - lastSaid < CHAT_GAP_MS) return "tooFast";
+      lastSaid = t;
+      try {
+        await set(bubbleRef, { id: crypto.randomUUID(), text, at: serverTimestamp() });
+        return "ok";
+      } catch {
+        return "tooFast"; // 규칙의 1초 간격에 걸림 (시계 차이 등)
+      }
+    },
+
     async leave() {
       if (stopped) return;
       standPatch(); // 공부 시간 정산·출석 저장 (펭귄 노드는 통째로 지우므로 패치는 자리만 씀)
@@ -292,13 +338,12 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
           [`players/${uid}`]: null,
           [`pos/${uid}`]: null,
           [`emotes/${uid}`]: null,
+          [`bubbles/${uid}`]: null,
         });
       } catch {
-        await Promise.all([remove(playerRef), remove(posRef), remove(emoteRef)]).catch(() => {});
+        await Promise.all(ownRefs.map((x) => remove(x))).catch(() => {});
       }
-      await Promise.all([onDisconnect(playerRef).cancel(), onDisconnect(posRef).cancel(), onDisconnect(emoteRef).cancel()]).catch(
-        () => {},
-      );
+      await Promise.all(ownRefs.map((x) => onDisconnect(x).cancel())).catch(() => {});
       if (hadSeat) await onDisconnect(hadSeat).cancel().catch(() => {});
     },
   };

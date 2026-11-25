@@ -154,3 +154,27 @@ export const NICKNAME_RE = /^[가-힣a-zA-Z0-9_]{2,12}$/;
 export function studyMsNow(p: Pick<PlayerState, "studyMs" | "studySince">, now: number): number {
   return p.studyMs + (p.studySince ? Math.max(0, now - p.studySince) : 0);
 }
+
+/** 말풍선 본문 정리: 줄바꿈 통일, 빈 줄 3개 이상 → 2개, 앞뒤 공백 제거, 길이 제한 */
+export function normalizeChat(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, CHAT_MAX);
+}
+
+/** 본문의 @닉네임 중 지금 접속 중인 펭귄만 태그로 인정 (보낸 사람 자신은 제외) */
+export function findMentions(
+  text: string,
+  players: Iterable<{ id: string; name: string }>,
+  senderId: string,
+): { id: string; name: string }[] {
+  const byName = new Map([...players].map((p) => [p.name.toLowerCase(), p]));
+  const found = new Map<string, { id: string; name: string }>();
+  for (const m of text.matchAll(MENTION_RE)) {
+    const target = byName.get(m[1].toLowerCase());
+    if (target && target.id !== senderId) found.set(target.id, { id: target.id, name: target.name });
+  }
+  return [...found.values()];
+}

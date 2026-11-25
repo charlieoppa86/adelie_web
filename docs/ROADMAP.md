@@ -103,9 +103,13 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - 창을 닫거나 연결이 끊기면 `onDisconnect`로 펭귄과 자리가 자동 정리. 다시 연결되면 자동 재입장
   - 펭귄 ID = 계정 uid. 같은 계정으로 다른 탭에서 들어오면 예전 탭은 빠짐 (여러 펭귄 테스트는 다른 계정으로)
   - 공부 중이면 1분마다 출석 기록에 공부 시간 저장 → 나갔다 와도 이어짐
-  - 말풍선·비밀 대화·신고·관리자는 아직 Socket.IO 서버 (같은 uid로 join)
-  - 검증: `npm run test:rules` (규칙 33개 항목), `npm run test:room` (두 펭귄 접속 흐름 18개 항목)
-- [ ] **F3 말풍선·@태그·출석부**
+  - 같은 계정으로 다른 탭에서 들어오면 예전 탭이 앉아 있던 자리를 비움
+  - 비밀 대화·신고·관리자는 아직 Socket.IO 서버 (같은 uid로 join)
+- [x] **F3 말풍선·@태그** (출석부는 F2에서 함께 옮김):
+  - `rooms/main/bubbles/{uid}`에 마지막 말 한 칸만 저장 → 대화 기록이 쌓이지 않고, 나가면 자동으로 지워짐
+  - 규칙: 본인만, 1~200자, 서버 시각, **1초에 1개** (기존 "5초에 5개"를 규칙으로 강제할 수 있는 형태로 바꿈)
+  - @태그는 받는 쪽이 지금 접속 중인 펭귄 목록으로 계산 (서버 없이 같은 결과)
+  - 검증: `npm run test:rules` (40개 항목), `npm run test:room` (25개 항목)
 - [ ] **F4 비밀 대화** (보안 규칙으로 두 사람만 읽기)
 - [ ] **F5 신고·관리자** (Cloud Function 스냅샷, 퇴장, 선생 역할 부여)
 - [ ] **F6 배포**: App Hosting, `realtime/` 삭제, 랜딩 버튼 연결
@@ -116,7 +120,7 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 ```bash
 npm run dev    # Next(3000) + 실시간 서버(3001) + Firebase 에뮬레이터(관리 화면 4000) 함께 실행
 npm run test:rules   # Realtime Database 보안 규칙 검증
-npm run test:room    # 접속·이동·자리·점프·탭 이어받기·퇴장 흐름 검증
+npm run test:room    # 접속·이동·자리·점프·말풍선·탭 이어받기·퇴장 흐름 검증
 npm run bots   # (선택) 테스트용 봇 펭귄 — F2 이후로는 Socket.IO에만 들어가 맵에는 안 보임 (F3 이후 정리)
 npm run test:dm      # 비밀 대화 서버 검증
 npm run test:report  # 신고·퇴장 정책 검증 (닉네임 "운영자"를 관리자로 사용)

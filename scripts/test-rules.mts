@@ -83,6 +83,19 @@ await check("내 위치 보내기", () => assertSucceeds(set(ref(db(alice), "roo
 await check("남의 위치를 바꿀 수 없음", () => assertFails(set(ref(db(bob), "rooms/main/pos/alice"), { x: 1, y: 1, d: 1, m: false })));
 await check("맵 밖 좌표 거부", () => assertFails(set(ref(db(alice), "rooms/main/pos/alice"), { x: 99999, y: 0, d: 1, m: false })));
 
+console.log("말풍선");
+const say = (ctx: RulesTestContext, uid: string, text: string) =>
+  set(ref(db(ctx), `rooms/main/bubbles/${uid}`), { id: `m-${Math.random()}`, text, at: serverTimestamp() });
+await check("말하기", () => assertSucceeds(say(alice, "alice", "안녕하세요")));
+await check("1초 안에 또 말하면 거부", () => assertFails(say(alice, "alice", "도배")));
+await check("남의 이름으로 말하기 거부", () => assertFails(say(bob, "alice", "사칭")));
+await check("201자 거부", () => assertFails(say(bob, "bob", "가".repeat(201))));
+await check("빈 말 거부", () => assertFails(say(bob, "bob", "")));
+await check("시각을 속이면 거부", () =>
+  assertFails(set(ref(db(bob), "rooms/main/bubbles/bob"), { id: "x", text: "hi", at: Date.now() + 99_999 })),
+);
+await check("bob 말하기", () => assertSucceeds(say(bob, "bob", "@펭귄Penguin 반가워요")));
+
 console.log("자리 · 점프 · 출석");
 await check("빈 자리에 앉기", () => assertSucceeds(set(ref(db(alice), "rooms/main/seats/d1"), "alice")));
 await check("남이 앉은 자리는 못 뺏음", () => assertFails(set(ref(db(bob), "rooms/main/seats/d1"), "bob")));

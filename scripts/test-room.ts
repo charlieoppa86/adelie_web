@@ -71,6 +71,7 @@ function enter(p: Penguin) {
       if (s) p.seen.set(id, { ...s, x: m.x, y: m.y, moving: m.moving });
     },
     emote: (id) => p.events.push(`jump:${id}`),
+    bubble: (m) => p.events.push(`say:${m.playerId}:${m.text}`),
     replaced: () => p.events.push("replaced"),
   };
   p.room = joinRoom(p.uid, { name: p.name, role: "student" }, on, p.db);
@@ -80,7 +81,7 @@ function enter(p: Penguin) {
 async function cleanup(ps: Penguin[]) {
   const day = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
   for (const p of ps) {
-    for (const path of [`users/${p.uid}`, `nicknames/${p.name.toLowerCase()}`, `attendance/${day}/${p.uid}`]) {
+    for (const path of [`rooms/main/players/${p.uid}`, `rooms/main/pos/${p.uid}`, `users/${p.uid}`, `nicknames/${p.name.toLowerCase()}`, `attendance/${day}/${p.uid}`]) {
       await fetch(`http://127.0.0.1:9000/${encodeURI(path)}.json?ns=${NS}`, {
         method: "DELETE",
         headers: { Authorization: "Bearer owner" },
@@ -118,12 +119,22 @@ async function main() {
   b.room!.jump();
   ok("A가 B의 점프를 봄", await until(() => a.events.includes(`jump:${b.uid}`)));
 
+  console.log("말풍선");
+  ok("A가 말하기", (await a.room!.say(`  안녕 @${b.name}  `)) === "ok");
+  ok("B가 A의 말을 받음 (앞뒤 공백 정리)", await until(() => b.events.includes(`say:${a.uid}:안녕 @${b.name}`)));
+  ok("1초 안에 또 말하면 너무 빠름", (await a.room!.say("또")) === "tooFast");
+  ok("빈 말은 안 보냄", (await a.room!.say("   ")) === "empty");
+  await sleep(1100);
+  ok("1초 뒤에는 다시 말할 수 있음", (await a.room!.say("다시")) === "ok");
+  ok("B가 새 말을 받음", await until(() => b.events.includes(`say:${a.uid}:다시`)));
+
   console.log("같은 계정 다른 탭");
   const aTab2: Penguin = { ...a, seen: new Map(), events: [], ready: false };
   enter(aTab2);
   ok("새 탭 입장", await until(() => aTab2.ready));
   ok("예전 탭은 '이어받음' 알림을 받음", await until(() => a.events.includes("replaced")));
   ok("B 화면에는 A가 한 명만 있음", b.seen.has(a.uid) && [...b.seen.values()].filter((s) => s.name === a.name).length === 1);
+  ok("예전 탭이 앉아 있던 자리(desk-1)가 비워짐", await until(() => ![...b.seen.values()].some((x) => x.seatId === "desk-1")) && (await b.room!.sit("desk-1", 1)));
   ok("이어받은 탭의 출석 입장 시각이 처음 입장 시각과 같음", aTab2.seen.get(a.uid)?.enteredAt === b.seen.get(a.uid)?.enteredAt);
 
   console.log("퇴장 · 연결 끊김");
@@ -133,7 +144,7 @@ async function main() {
   const c = await makePenguin("C");
   enter(c);
   ok("B가 끊기면 새로 온 C 화면에 B가 없음", (await until(() => c.ready)) && (await sleep(500), !c.seen.has(b.uid)));
-  ok("B가 앉았던 자리 stand-1이 비어 C가 앉을 수 있음", await c.room!.sit("stand-1", 1));
+  ok("B가 앉았던 자리 desk-1이 비어 C가 앉을 수 있음", await c.room!.sit("desk-1", 1));
   await c.room!.leave();
 
   await cleanup([a, b, c]);
