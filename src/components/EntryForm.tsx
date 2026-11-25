@@ -29,11 +29,19 @@ export function EntryForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(
-    () =>
-      watchAccount(setAccount),
-    [],
-  );
+  /** 이미 가입한 펭귄은 카드 없이 바로 스터디룸으로 (스터디룸의 나가기·로고에서 온 경우 ?stay 로 카드 유지) */
+  const [entering, setEntering] = useState(false);
+
+  useEffect(() => {
+    const stay = new URLSearchParams(window.location.search).has("stay");
+    return watchAccount((s) => {
+      if (s.status === "ready" && !stay) {
+        setEntering(true);
+        router.replace("/office");
+      }
+      setAccount(s);
+    });
+  }, [router]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -45,10 +53,10 @@ export function EntryForm() {
     }
   };
 
-  if (account.status === "loading") {
+  if (account.status === "loading" || entering) {
     return (
       <div className={`${CARD} text-center text-sm text-ink-300`} role="status">
-        펭귄 확인 중…
+        {entering ? "남극AI빌리지로 들어가는 중…" : "펭귄 확인 중…"}
       </div>
     );
   }
@@ -88,7 +96,11 @@ export function EntryForm() {
       run(async () => {
         const r = await createProfile(account.user, name);
         if (typeof r === "string") setError(PROFILE_ERRORS[r]);
-        else setAccount({ status: "ready", user: account.user, profile: r });
+        else {
+          // 닉네임을 정하면 바로 입장
+          setEntering(true);
+          router.replace("/office");
+        }
       })
     } onCancel={() => run(signOutAccount)} />;
   }
