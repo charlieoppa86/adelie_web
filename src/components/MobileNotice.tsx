@@ -15,8 +15,28 @@ function isMobile(): boolean {
   return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
 }
 
+/** 클립보드 복사 — 인앱 브라우저처럼 clipboard API 가 막힌 곳은 execCommand 로 */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
 export function MobileNotice() {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!isMobile() || sessionStorage.getItem(SEEN_KEY)) return;
@@ -50,9 +70,19 @@ export function MobileNotice() {
         </p>
         <button
           type="button"
+          disabled={copied}
+          onClick={async () => setCopied(await copyText(LANDING_URL))}
+          className={`mt-5 w-full rounded-full py-3 font-extrabold transition active:scale-[.98] ${
+            copied ? "bg-ink-600 text-ink-300" : "bg-white text-ink-900 hover:bg-brand-50"
+          }`}
+        >
+          {copied ? "복사 완료!" : "링크 복사"}
+        </button>
+        <button
+          type="button"
           autoFocus
           onClick={() => window.location.assign(LANDING_URL)}
-          className="mt-5 w-full rounded-full bg-brand-500 py-3 font-extrabold text-white transition hover:bg-brand-400 active:scale-[.98]"
+          className="mt-2 w-full rounded-full bg-brand-500 py-3 font-extrabold text-white transition hover:bg-brand-400 active:scale-[.98]"
         >
           확인
         </button>
