@@ -117,7 +117,11 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - 관리자: `users/{uid}/role = "admin"` (콘솔에서 직접 지정). 퇴장(`bans/{uid}`, 24시간, 규칙으로 재입장 차단), 문제없음 처리, **선생 역할 부여**(프로필 카드 버튼)
   - Socket.IO 서버(`realtime/`)와 봇·소켓 테스트 삭제
   - 검증: `npm run test:dm` (28개 항목: 신청·거절·취소·수락·잠금·내용 차단·신고 기준·스냅샷·역할·퇴장·연결 끊김)
-- [ ] **F6 배포**: 실제 DB 생성·규칙과 Functions 배포, App Hosting, 랜딩 버튼 연결
+- [x] **F6 배포** (2026-11-25):
+  - 스터디룸: https://adelie-web--adelie-8e417.asia-southeast1.hosted.app (Firebase App Hosting, 백엔드 `adelie-web`, `main`에 push하면 자동 배포, 설정은 `apphosting.yaml`)
+  - Realtime Database `adelie-8e417-default-rtdb` (asia-southeast1 싱가포르 — RTDB는 서울 리전이 없음). 규칙 배포: `firebase deploy --only database`
+  - Cloud Functions `onReport`·`onSessionEnded` (asia-southeast1, DB와 같은 리전). 배포: `npx firebase-tools@latest deploy --only functions` (설치된 CLI 13.15는 Extensions API 검사에 막힘). 오래된 컨테이너 이미지는 1일 뒤 자동 삭제
+  - 랜딩(Vercel `adelie-ai`): 상단 메뉴·모바일 메뉴·무료 스터디 카드에 "스터디룸 입장" 링크
 - 이후: 뽀모도로·통계·배지, 음성·화상, **모바일 전용 UI** (데스크톱과 다른 구성으로 따로 설계)
 
 ## 로컬 실행
