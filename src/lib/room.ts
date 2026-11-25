@@ -101,6 +101,8 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   /** 내가 자동으로 지우는 노드들 (연결 끊김·다른 탭 이어받기·퇴장 때 함께 처리) */
   const ownRefs = [playerRef, posRef, emoteRef, bubbleRef];
   let lastSaid = 0;
+  /** 역할은 관리자가 바꿀 수 있어 따로 들고 있음 */
+  let role = profile.role;
 
   let offset = 0;
   const now = () => Date.now() + offset;
@@ -163,11 +165,21 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     await set(attRef, { enteredAt, studyMs });
     myPos = { ...myPos, m: false };
     await set(posRef, myPos);
-    await set(playerRef, { name: profile.name, role: profile.role, conn, enteredAt, studyMs } satisfies Meta);
+    await set(playerRef, { name: profile.name, role, conn, enteredAt, studyMs } satisfies Meta);
     if (stopped) return;
     entered = true;
     on.ready(uid);
   }
+
+  /* 관리자가 역할(선생·학생)을 바꾸면 내 펭귄에도 반영 (규칙: 펭귄 역할 = 프로필 역할) */
+  unsubs.push(
+    onValue(ref(db, `users/${uid}/role`), (s) => {
+      const next = s.val() as PlayerState["role"] | null;
+      if (!next || next === role) return;
+      role = next;
+      if (entered && !stopped) set(r(`players/${uid}/role`), role).catch(() => {});
+    }),
+  );
 
   /* 연결 상태 */
   unsubs.push(

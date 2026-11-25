@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { io, type Socket } from "socket.io-client";
-import { realtimeUrl } from "@/lib/localProfile";
 import { watchAccount } from "@/lib/account";
+import { startDm, type DmHandle } from "@/lib/dm";
+import { dismiss, kick, setRole, watchBan, watchFlags, type FlaggedTarget } from "@/lib/moderation";
 import { joinRoom, type RoomHandle } from "@/lib/room";
 import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
@@ -14,10 +14,8 @@ import {
   BUBBLE_MS,
   findMentions,
   studyMsNow,
-  type ClientToServerEvents,
   type ModerationFlag,
   type PlayerState,
-  type ServerToClientEvents,
 } from "@/shared/protocol";
 import { AdminPanel } from "./AdminPanel";
 import { AttendancePanel } from "./AttendancePanel";
@@ -30,7 +28,6 @@ import { useSecretChat } from "./useSecretChat";
 import { WeatherBanner, WeatherChip, WeatherLayer, useHourlyWeather } from "./Weather";
 import { formatClock, formatDuration, presenceOf, ROLE_LABEL } from "./presence";
 
-type IoClient = Socket<ServerToClientEvents, ClientToServerEvents>;
 type Pt = { x: number; y: number };
 
 const SEAT_LABEL = { desk: "집중 개인석", standing: "스탠딩석", cafe: "카페석", sofa: "카페 소파" } as const;
@@ -73,13 +70,10 @@ export function Office() {
   const [bubbles, setBubbles] = useState<Record<string, Bubble>>({});
   const composerRef = useRef<ComposerHandle>(null);
   /** 관리자: 확인이 필요한 신고 */
-  const [flags, setFlags] = useState<ModerationFlag[]>([]);
+  const [flagged, setFlagged] = useState<FlaggedTarget[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [kicked, setKicked] = useState<{ message: string; until: number } | null>(null);
-  /** 관리자 여부: F5 전까지는 Socket.IO 서버(ADMIN_NAMES)가 정함 */
-  const [socketAdmin, setSocketAdmin] = useState(false);
-
-  const socketRef = useRef<IoClient | null>(null);
+  const dmRef = useRef<DmHandle | null>(null);
   const roomRef = useRef<RoomHandle | null>(null);
   const playersRef = useRef(players);
   const selfIdRef = useRef<string | null>(null);
@@ -101,8 +95,10 @@ export function Office() {
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2600);
   }, []);
 
-  const dm = useSecretChat(socketRef, showToast);
-  const dmBind = dm.bind;
+  const offsetRef = useRef(0);
+  const serverNow = useCallback(() => Date.now() + offsetRef.current, []);
+  const dm = useSecretChat(dmRef, showToast, serverNow);
+  const dmEvents = dm.events;
 
   /** 정시에 날씨가 바뀌면 모든 펭귄이 깜짝 점프 */
   const jumpAll = useCallback(() => {
@@ -128,10 +124,11 @@ export function Office() {
     });
   }, []);
 
-  /* ---------- 입장: 로그인 확인 → Realtime Database(접속·위치·자리·말풍선) + Socket.IO(비밀 대화·신고) ---------- */
+  /* ---------- 입장: 로그인 확인 → 스터디룸(접속·위치·자리·말풍선) + 비밀 대화 + 퇴장 확인 (모두 Realtime Database) ---------- */
   useEffect(() => {
     let room: RoomHandle | null = null;
-    let socket: IoClient | null = null;
+    let dm: DmHandle | null = null;
+    const unsubs: (() => void)[] = [];
 
     const start = (uid: string, profile: { name: string; role: PlayerState["role"] }) => {
       room = joinRoom(uid, profile, {
@@ -141,7 +138,10 @@ export function Office() {
           setConn("ready");
         },
         connection: (online) => setConn((c) => (online ? (c === "offline" ? "connecting" : c) : "offline")),
-        serverOffset: setClockOffset,
+        serverOffset: (ms) => {
+          offsetRef.current = ms;
+          setClockOffset(ms);
+        },
         player: (p, joined) => {
           upsert(p);
           if (joined && p.id !== selfIdRef.current)
@@ -155,6 +155,7 @@ export function Office() {
             setPlayers((ps) => (ps[pid] ? { ...ps, [pid]: { ...ps[pid], dir, moving, x, y } } : ps));
         },
         left: (pid) => {
+          dm?.peerLeft(pid);
           pos.current.delete(pid);
           setPlayers((ps) => {
             const { [pid]: gone, ...rest } = ps;
@@ -190,32 +191,42 @@ export function Office() {
         },
         replaced: () => {
           setJoinError("다른 탭이나 기기에서 스터디룸에 들어가서 이 화면은 빠졌어요.");
-          socket?.disconnect();
+          void dm?.stop();
         },
       });
       roomRef.current = room;
 
-      // 비밀 대화·신고는 아직 Socket.IO 서버 (F4~F5에서 옮김). 펭귄 ID = 계정 uid
-      socket = io(realtimeUrl(), { transports: ["websocket"] });
-      socketRef.current = socket;
-      const s = socket;
-      s.on("connect", () => s.emit("join", { id: uid, name: profile.name, role: profile.role }));
-      s.on("init", ({ selfId: sid, players: list }) => setSocketAdmin(list.find((p) => p.id === sid)?.role === "admin"));
-      s.on("join:error", ({ message }) => {
-        setJoinError(message);
-        void room?.leave();
-      });
-      s.on("notice", ({ message }) => showToast(message));
-      dmBind(s);
-      s.on("admin:flags", ({ flags }) => setFlags(flags));
-      s.on("admin:alert", ({ targetName, reporterCount }) =>
-        showToast(`🚨 ${targetName} 펭귄이 ${reporterCount}명에게 신고됐어요 — 확인이 필요해요`),
+      dm = startDm(
+        uid,
+        {
+          peer: (id) => {
+            const p = playersRef.current[id];
+            return p ? { id: p.id, name: p.name, role: p.role } : null;
+          },
+          serverNow,
+        },
+        dmEvents,
       );
-      s.on("kicked", (data) => {
-        setKicked(data);
-        s.disconnect();
-        void room?.leave();
-      });
+      dmRef.current = dm;
+
+      // 관리자가 퇴장시키면 바로 나감 (규칙상 기간 동안 다시 못 들어옴)
+      unsubs.push(
+        watchBan(uid, (until) => {
+          if (!until || until <= serverNow()) return;
+          setKicked({ message: "신고가 누적돼 운영진이 스터디룸에서 퇴장시켰어요.", until });
+          void dm?.stop();
+          void room?.leave();
+        }),
+      );
+      // 관리자만 읽을 수 있음 (아니면 빈 목록)
+      if (profile.role === "admin")
+        unsubs.push(
+          watchFlags({
+            flags: setFlagged,
+            alert: (targetName, reporterCount) =>
+              showToast(`🚨 ${targetName} 펭귄이 ${reporterCount}명에게 신고됐어요 — 확인이 필요해요`),
+          }),
+        );
     };
 
     const stopWatching = watchAccount((a) => {
@@ -225,15 +236,13 @@ export function Office() {
 
     return () => {
       stopWatching();
+      unsubs.forEach((u) => u());
+      void dm?.stop();
+      dmRef.current = null;
       void room?.leave();
       roomRef.current = null;
-      if (socket) {
-        socket.removeAllListeners();
-        socket.disconnect();
-      }
-      socketRef.current = null;
     };
-  }, [router, upsert, showToast, dmBind]);
+  }, [router, upsert, showToast, dmEvents, serverNow]);
 
   /* ---------- 키보드 ---------- */
   useEffect(() => {
@@ -454,7 +463,19 @@ export function Office() {
     [showToast],
   );
   const selected = selectedId ? players[selectedId] : undefined;
-  const isAdmin = me?.role === "admin" || socketAdmin;
+  const isAdmin = me?.role === "admin";
+  /** 관리자 패널용: 신고 목록 + 지금 접속 중인지 */
+  const flags = useMemo<ModerationFlag[]>(
+    () =>
+      flagged.map((f) => ({
+        targetKey: f.targetId,
+        targetName: f.targetName,
+        online: !!players[f.targetId],
+        reporterCount: f.reporterCount,
+        reports: f.reports,
+      })),
+    [flagged, players],
+  );
 
   if (kicked) {
     return (
@@ -659,6 +680,20 @@ export function Office() {
                     />
                   </div>
                 )}
+                {isAdmin && selected.id !== selfId && selected.role !== "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = selected.role === "teacher" ? "student" : "teacher";
+                      setRole(selected.id, next)
+                        .then(() => showToast(`${selected.name} 님을 ${next === "teacher" ? "🎓 선생" : "🎒 학생"} 아델리로 바꿨어요`))
+                        .catch(() => showToast("역할을 바꾸지 못했어요."));
+                    }}
+                    className="mt-2 w-full rounded-xl border border-white/15 py-2 text-xs font-bold text-ink-200 hover:bg-white/5"
+                  >
+                    🛡️ {selected.role === "teacher" ? "학생으로 되돌리기" : "선생 역할 주기"}
+                  </button>
+                )}
               </div>
             )}
 
@@ -702,8 +737,18 @@ export function Office() {
               <div className="absolute bottom-3 left-3 top-3 z-50">
                 <AdminPanel
                   flags={flags}
-                  onKick={(targetKey) => socketRef.current?.emit("admin:kick", { targetKey })}
-                  onDismiss={(targetKey) => socketRef.current?.emit("admin:dismiss", { targetKey })}
+                  onKick={(targetId) => {
+                    if (!selfId) return;
+                    const name = flagged.find((f) => f.targetId === targetId)?.targetName ?? "펭귄";
+                    kick(selfId, targetId, players[targetId]?.seatId ?? null, serverNow())
+                      .then(() => showToast(`${name} 펭귄을 퇴장시켰어요 (24시간 재입장 제한)`))
+                      .catch(() => showToast("퇴장시키지 못했어요."));
+                  }}
+                  onDismiss={(targetId) =>
+                    dismiss(targetId)
+                      .then(() => showToast("문제없음으로 처리했어요."))
+                      .catch(() => showToast("처리하지 못했어요."))
+                  }
                   onClose={() => setAdminOpen(false)}
                 />
               </div>

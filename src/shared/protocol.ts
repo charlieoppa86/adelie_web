@@ -1,5 +1,5 @@
 /**
- * 실시간 서버 ↔ 클라이언트 이벤트 규약 (Socket.IO)
+ * 스터디룸 공통 타입·상수 (화면 · Realtime Database 모듈 · 테스트가 함께 씀)
  */
 
 export type Role = "student" | "teacher" | "admin";
@@ -19,12 +19,6 @@ export interface PlayerState {
   /** 지금까지 누적된 공부 시간 (ms) — 현재 공부 중인 구간은 studySince로 계산 */
   studyMs: number;
   studySince: number | null;
-}
-
-export interface JoinPayload {
-  id: string;
-  name: string;
-  role: Role;
 }
 
 export interface MovePayload {
@@ -100,53 +94,6 @@ export interface ModerationFlag {
   online: boolean;
   reporterCount: number;
   reports: ReportView[];
-}
-
-export interface ServerToClientEvents {
-  init: (data: { selfId: string; players: PlayerState[]; serverNow: number }) => void;
-  "join:error": (data: { message: string }) => void;
-  "player:joined": (p: PlayerState) => void;
-  "player:left": (data: { id: string }) => void;
-  "player:moved": (data: { id: string } & MovePayload) => void;
-  "player:updated": (p: PlayerState) => void;
-  "player:emote": (data: { id: string; emote: "jump" }) => void;
-  notice: (data: { message: string }) => void;
-  chat: (m: ChatMessage) => void;
-  /** 내가 보낸 신청이 접수됨 */
-  "dm:requested": (data: { requestId: string; to: PeerInfo; expiresAt: number }) => void;
-  /** 나에게 온 신청 */
-  "dm:incoming": (data: { requestId: string; from: PeerInfo; expiresAt: number }) => void;
-  /** 신청이 끝남 (거절·만료·취소·상대 퇴장). 양쪽 모두 받음 */
-  "dm:closed": (data: { requestId: string; reason: DmCloseReason; peerName: string }) => void;
-  "dm:started": (data: { sessionId: string; peer: PeerInfo; startedAt: number }) => void;
-  "dm:message": (m: DmMessage) => void;
-  "dm:ended": (data: { sessionId: string; byName: string; reason: "left" | "disconnected" }) => void;
-  /** 지금 비밀 대화 중인 펭귄 쌍 — 누구나 받지만 내용은 없음 (🔒 표시용) */
-  "dm:locks": (data: { pairs: [string, string][] }) => void;
-  "report:ack": (data: { ok: boolean; message: string }) => void;
-  /** 관리자 전용: 확인이 필요한 신고 목록 */
-  "admin:flags": (data: { flags: ModerationFlag[] }) => void;
-  /** 관리자 전용: 새로 기준을 넘은 신고 */
-  "admin:alert": (data: { targetName: string; reporterCount: number }) => void;
-  /** 관리자 조치로 퇴장됨 */
-  kicked: (data: { message: string; until: number }) => void;
-}
-
-export interface ClientToServerEvents {
-  join: (p: JoinPayload) => void;
-  move: (p: MovePayload) => void;
-  sit: (data: { seatId: string }) => void;
-  stand: () => void;
-  emote: (data: { emote: "jump" }) => void;
-  chat: (data: { text: string }) => void;
-  "dm:request": (data: { to: string }) => void;
-  "dm:cancel": (data: { requestId: string }) => void;
-  "dm:respond": (data: { requestId: string; accept: boolean }) => void;
-  "dm:send": (data: { sessionId: string; text: string }) => void;
-  "dm:leave": (data: { sessionId: string }) => void;
-  report: (data: { sessionId: string; reason: ReportReason; detail: string; endChat: boolean }) => void;
-  "admin:kick": (data: { targetKey: string }) => void;
-  "admin:dismiss": (data: { targetKey: string }) => void;
 }
 
 export const NICKNAME_RE = /^[가-힣a-zA-Z0-9_]{2,12}$/;

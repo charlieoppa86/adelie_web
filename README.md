@@ -12,15 +12,15 @@
 ## 실행
 
 ```bash
-npm install
-npm run dev          # Next(3000) + 실시간 서버(3001)
-npm run bots         # (선택) 테스트용 봇 펭귄
-npm run test:dm      # 비밀 대화 서버 검증
-npm run test:report  # 신고·퇴장 정책 검증
+npm install && (cd functions && npm install)
+npm run dev          # Next(3000) + Firebase 에뮬레이터(Auth·Realtime Database·Functions, 관리 화면 4000)
+npm run test:rules   # 보안 규칙 검증
+npm run test:room    # 접속·이동·자리·말풍선 흐름 검증
+npm run test:dm      # 비밀 대화·신고·관리자 흐름 검증 (Cloud Functions 포함)
 ```
 
-http://localhost:3000 에서 닉네임과 역할을 정해 입장해요. 로그인은 마지막 단계에서 붙일 예정이에요.
-관리자 닉네임은 환경변수로 지정해요: `ADMIN_NAMES=운영자 npm run dev`.
+http://localhost:3000 에서 Google로 로그인해 입장해요. 에뮬레이터에서는 가짜 계정 선택 창이 떠요(Java 필요).
+관리자 지정: 에뮬레이터 관리 화면(또는 운영 콘솔)의 Realtime Database에서 `users/{uid}/role`을 `"admin"`으로 바꿔요.
 
 ## 구조
 
@@ -28,7 +28,9 @@ http://localhost:3000 에서 닉네임과 역할을 정해 입장해요. 로그�
 |---|---|
 | `src/app` | 입장 화면(`/`), 스터디룸(`/office`) |
 | `src/components/office` | 맵·풍경 그림, 아바타, 입력창, 비밀 대화, 관리자 패널, 날씨 |
-| `src/shared` | 클라이언트와 서버가 함께 쓰는 맵·규약·길찾기·날씨 |
-| `realtime` | Socket.IO 실시간 서버, 신고·퇴장 기록 |
-| `scripts` | 봇과 서버 검증 스크립트 |
+| `src/lib` | Firebase 연결: 계정(`account`), 스터디룸(`room`), 비밀 대화(`dm`), 신고·관리자(`moderation`) |
+| `src/shared` | 맵·공통 타입·길찾기·날씨 |
+| `firebase/` | Realtime Database 보안 규칙 (Firestore는 쓰지 않아 잠가 둠) |
+| `functions/` | Cloud Functions: 신고 스냅샷·관리자 공개 기준, 끝난 비밀 대화 메시지 정리 |
+| `scripts` | 검증 스크립트 |
 | `docs/ROADMAP.md` | 구현 로드맵과 결정 사항 |

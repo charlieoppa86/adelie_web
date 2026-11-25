@@ -3,26 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n web,rt,fb -c cyan,magenta,yellow \"next dev\" \"npm:realtime\" \"npm:emulators\"",
+    "dev": "concurrently -k -n web,fb -c cyan,yellow \"next dev\" \"npm:emulators\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "realtime": "tsx watch realtime/server.ts",
     "typecheck": "tsc --noEmit",
-    "bots": "tsx scripts/bots.ts",
-    "test:dm": "tsx scripts/test-dm.mts",
-    "test:report": "tsx scripts/test-report.mts",
     "emulators": "mkdir -p .data/emulators && firebase emulators:start --import .data/emulators --export-on-exit",
     "test:rules": "if lsof -ti tcp:9000 >/dev/null; then FIREBASE_DATABASE_EMULATOR_HOST=127.0.0.1:9000 tsx scripts/test-rules.mts; else firebase emulators:exec --only database \"tsx scripts/test-rules.mts\"; fi",
-    "test:room": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-room.ts; else firebase emulators:exec --only auth,database \"tsx scripts/test-room.ts\"; fi"
+    "test:room": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-room.ts; else firebase emulators:exec --only auth,functions,database \"tsx scripts/test-room.ts\"; fi",
+    "test:dm": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-dm.ts; else firebase emulators:exec --only auth,functions,database \"tsx scripts/test-dm.ts\"; fi"
   },
   "dependencies": {
     "firebase": "^13.4.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "socket.io": "^4.8.4",
-    "socket.io-client": "^4.8.4"
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",

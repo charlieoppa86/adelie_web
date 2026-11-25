@@ -72,7 +72,7 @@
   - 신고 시점까지의 대화가 스냅샷으로 저장됨. 상대에게는 알리지 않음
   - **서로 다른 신고자 2명 이상**이면 관리자에게 실시간 알림이 가고 "🛡️ 신고 확인" 패널에 표시됨. 1명뿐이면 관리자도 볼 수 없고, 같은 사람이 여러 번 신고해도 1명으로 셈
   - 관리자 조치: **퇴장시키기**(즉시 퇴장, 24시간 재입장 불가, 두 번 눌러 확인) 또는 **문제없음 처리**
-  - 관리자 지정(임시): 실시간 서버 환경변수 `ADMIN_NAMES`(쉼표 구분, 기본값 `운영자`)의 닉네임으로 입장. 로그인 단계에서 계정 기준으로 교체
+  - 관리자 지정(임시): 실시간 서버 환경변수 `ADMIN_NAMES`. → F5에서 계정의 `role = "admin"`으로 교체
   - 기록은 `.data/moderation.json`(git 제외)에 저장하고, DB 단계에서 옮김
   - 검증: `npm run test:report` (16개 항목)
   - 남은 일: 관리자가 선생 역할을 부여하는 기능은 로그인 단계에서 함께
@@ -88,8 +88,7 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 |---|---|
 | 로그인 | Firebase Auth (Google) |
 | 프로필·접속·위치·자리·출석·말풍선·비밀 대화 | Realtime Database (asia-southeast1). 위치 전송은 초당 15번 → 5번으로 줄임 (전송량이 접속자 수의 제곱으로 늘어 비용에 직결) |
-| 신고 기록 | F5에서 결정 (Firestore 또는 Realtime Database). Firestore는 지금 전부 잠가 둠 |
-| 신고 스냅샷·퇴장·역할 부여 | Cloud Functions + 보안 규칙 |
+| 비밀 대화·신고·퇴장·역할 | Realtime Database + Cloud Functions(신고 스냅샷). Firestore는 쓰지 않아 전부 잠가 둠 |
 
 로그인은 원래 마지막 단계였지만, 보안 규칙이 "누구인지"를 기준으로 동작하므로 F1으로 앞당겼습니다.
 
@@ -104,27 +103,31 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - 펭귄 ID = 계정 uid. 같은 계정으로 다른 탭에서 들어오면 예전 탭은 빠짐 (여러 펭귄 테스트는 다른 계정으로)
   - 공부 중이면 1분마다 출석 기록에 공부 시간 저장 → 나갔다 와도 이어짐
   - 같은 계정으로 다른 탭에서 들어오면 예전 탭이 앉아 있던 자리를 비움
-  - 비밀 대화·신고·관리자는 아직 Socket.IO 서버 (같은 uid로 join)
 - [x] **F3 말풍선·@태그** (출석부는 F2에서 함께 옮김):
   - `rooms/main/bubbles/{uid}`에 마지막 말 한 칸만 저장 → 대화 기록이 쌓이지 않고, 나가면 자동으로 지워짐
   - 규칙: 본인만, 1~200자, 서버 시각, **1초에 1개** (기존 "5초에 5개"를 규칙으로 강제할 수 있는 형태로 바꿈)
   - @태그는 받는 쪽이 지금 접속 중인 펭귄 목록으로 계산 (서버 없이 같은 결과)
   - 검증: `npm run test:rules` (40개 항목), `npm run test:room` (25개 항목)
-- [ ] **F4 비밀 대화** (보안 규칙으로 두 사람만 읽기)
-- [ ] **F5 신고·관리자** (Cloud Function 스냅샷, 퇴장, 선생 역할 부여)
-- [ ] **F6 배포**: App Hosting, `realtime/` 삭제, 랜딩 버튼 연결
+- [x] **F4+F5 비밀 대화 · 신고 · 관리자** (신고가 대화 스냅샷을 써서 함께 옮김):
+  - `dm/requests/{받는 uid}/{보낸 uid}`: 신청. 받는 사람이 수락하면 `dm/sessions/{id}` + `dm/active/{uid}`(한 번에 하나, 🔒 표시용)를 한 번에 만듦. 30초 지나면 규칙상 수락 불가
+  - `dm/messages/{id}`: **두 참여자만** 읽고 씀 (관리자도 못 읽음). 대화가 끝나면 Cloud Function이 지움
+  - 연결이 끊기면 onDisconnect로 대화가 끝나고 보낸 신청도 지워짐
+  - 신고: 신고자는 `reports/pending/{세션_신고자}`만 씀(대화 중인 상대만, 같은 대화 중복 불가). **Cloud Function `onReport`가 그 시점 대화를 서버에서 읽어 스냅샷**으로 저장 → 신고자가 내용을 꾸밀 수 없음
+    - `moderation/held/{대상}`: 관리자도 못 봄. 서로 다른 신고자 2명 이상이면 `moderation/flagged/{대상}`으로 올라가 관리자에게 실시간 알림
+  - 관리자: `users/{uid}/role = "admin"` (콘솔에서 직접 지정). 퇴장(`bans/{uid}`, 24시간, 규칙으로 재입장 차단), 문제없음 처리, **선생 역할 부여**(프로필 카드 버튼)
+  - Socket.IO 서버(`realtime/`)와 봇·소켓 테스트 삭제
+  - 검증: `npm run test:dm` (28개 항목: 신청·거절·취소·수락·잠금·내용 차단·신고 기준·스냅샷·역할·퇴장·연결 끊김)
+- [ ] **F6 배포**: 실제 DB 생성·규칙과 Functions 배포, App Hosting, 랜딩 버튼 연결
 - 이후: 뽀모도로·통계·배지, 음성·화상, **모바일 전용 UI** (데스크톱과 다른 구성으로 따로 설계)
 
 ## 로컬 실행
 
 ```bash
-npm run dev    # Next(3000) + 실시간 서버(3001) + Firebase 에뮬레이터(관리 화면 4000) 함께 실행
+npm run dev          # Next(3000) + Firebase 에뮬레이터 (Auth·Realtime Database·Functions, 관리 화면 4000)
 npm run test:rules   # Realtime Database 보안 규칙 검증
 npm run test:room    # 접속·이동·자리·점프·말풍선·탭 이어받기·퇴장 흐름 검증
-npm run bots   # (선택) 테스트용 봇 펭귄 — F2 이후로는 Socket.IO에만 들어가 맵에는 안 보임 (F3 이후 정리)
-npm run test:dm      # 비밀 대화 서버 검증
-npm run test:report  # 신고·퇴장 정책 검증 (닉네임 "운영자"를 관리자로 사용)
-ADMIN_NAMES=운영자,펭귄대장 npm run dev   # 관리자 닉네임 지정
+npm run test:dm      # 비밀 대화·신고·관리자 흐름 검증
 ```
 에뮬레이터에서는 Google 대신 가짜 계정 선택 창이 떠요. 로컬 데이터는 `.data/emulators`에 남아요(Java 필요).
 여러 펭귄으로 테스트하려면 시크릿 창이나 다른 브라우저에서 **다른 계정**으로 로그인해요. 같은 계정으로 탭을 또 열면 예전 탭이 빠져요.
+관리자로 테스트하려면 에뮬레이터 관리 화면 → Realtime Database에서 `users/{uid}/role`을 `"admin"`으로 바꾸고 다시 입장해요.
