@@ -38,7 +38,8 @@ const SEND_EVERY = 200; // ms (5Hz)
 /** 다른 펭귄 보간 속도 — 전송 간격이 길어진 만큼 부드럽게 따라가도록 낮춤 */
 const LERP_RATE = 6;
 const MIN_SCALE = 0.45;
-const MAX_SCALE = 1.25;
+/** 큰 모니터 전체 화면에서도 풍경이 가로를 꽉 채우도록 넉넉히 */
+const MAX_SCALE = 1.8;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
 const KEY_DIR: Record<string, [number, number]> = {
@@ -278,7 +279,8 @@ export function Office() {
     const ro = new ResizeObserver(() => {
       const vw = vp.clientWidth;
       const vh = vp.clientHeight;
-      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(vw / LANDSCAPE.w, vh / LANDSCAPE.h)));
+      // 화면을 꽉 채우는 배율(cover): 남는 쪽은 카메라가 내 펭귄을 따라가며 보여 줌
+      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.max(vw / LANDSCAPE.w, vh / LANDSCAPE.h)));
       Object.assign(cam.current, { vw, vh, s });
       // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
       worldRef.current?.style.setProperty("--ui", String(Math.min(1.7, Math.max(1, 0.85 / s))));
@@ -512,7 +514,7 @@ export function Office() {
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/brand/logo-mark.svg" alt="" width={28} height={28} />
-          <span className="font-extrabold">남극 AI 스터디룸</span>
+          <span className="font-extrabold">남극AI빌리지</span>
         </Link>
         <span
           className={`ml-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
@@ -756,7 +758,7 @@ export function Office() {
 
             {conn === "connecting" && (
               <div className="absolute inset-0 z-30 grid place-items-center bg-night/70 text-sm text-ink-200">
-                남극 AI 스터디룸에 들어가는 중…
+                남극AI빌리지에 들어가는 중…
               </div>
             )}
           </div>

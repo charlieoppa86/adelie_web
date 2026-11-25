@@ -7,7 +7,7 @@ import { EntryForm } from "@/components/EntryForm";
 export default function Home() {
   return (
     <main className="glacier-sky flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16">
-      <h1 className="sr-only">남극 AI 스터디룸 입장</h1>
+      <h1 className="sr-only">남극AI빌리지 입장</h1>
       <EntryForm />
     </main>
   );

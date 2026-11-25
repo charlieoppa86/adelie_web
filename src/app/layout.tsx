@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "남극 AI 스터디룸", template: "%s · 남극 AI 스터디룸" },
+  title: { default: "남극AI빌리지", template: "%s · 남극AI빌리지" },
   description: "강사 아델리와 학생 아델리가 함께 AI를 공부하는 남극 위의 가상 스터디룸",
   icons: {
     icon: [{ url: "/brand/favicon.svg", type: "image/svg+xml" }],
