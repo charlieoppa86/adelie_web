@@ -87,19 +87,24 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 | 기능 | 옮길 곳 |
 |---|---|
 | 로그인 | Firebase Auth (Google) |
-| 접속·위치·자리·말풍선·비밀 대화 | Realtime Database (asia-southeast1). 위치 전송은 초당 15번 → 4~5번으로 줄임 (전송량이 접속자 수의 제곱으로 늘어 비용에 직결) |
-| 프로필·출석·신고 | Firestore (asia-northeast3 서울) |
+| 프로필·접속·위치·자리·출석·말풍선·비밀 대화 | Realtime Database (asia-southeast1). 위치 전송은 초당 15번 → 5번으로 줄임 (전송량이 접속자 수의 제곱으로 늘어 비용에 직결) |
+| 신고 기록 | F5에서 결정 (Firestore 또는 Realtime Database). Firestore는 지금 전부 잠가 둠 |
 | 신고 스냅샷·퇴장·역할 부여 | Cloud Functions + 보안 규칙 |
 
 로그인은 원래 마지막 단계였지만, 보안 규칙이 "누구인지"를 기준으로 동작하므로 F1으로 앞당겼습니다.
 
 - [x] **F1 Google 로그인**:
   - 입장 화면: Google로 입장 → 처음이면 닉네임 정하기(중복 불가, 대소문자만 달라도 중복, 변경 불가) → 입장
-  - Firestore `users/{uid}`(닉네임·역할) + `nicknames/{소문자 닉네임}`(예약)을 한 배치로 생성. 역할은 항상 student로 시작
+  - `users/{uid}`(닉네임·역할) + `nicknames/{소문자 닉네임}`(예약)을 한 번에 생성. 역할은 항상 student로 시작
+    - 처음엔 Firestore에 뒀다가 F2에서 Realtime Database로 옮김: 스터디룸 규칙이 "입장한 이름 = 내 프로필 이름"을 확인하려면 같은 DB에 있어야 함
   - 로그인하지 않으면 `/office`에서 입장 화면으로 돌려보냄
-  - F2 전까지는 계정 프로필을 브라우저 저장 프로필로 넘겨 기존 Socket.IO 서버를 계속 사용
-  - 검증: `npm run test:rules` (Firestore 규칙 13개 항목)
-- [ ] **F2 접속·위치·자리**를 Realtime Database로 (`onDisconnect`로 퇴장 처리)
+- [x] **F2 접속·위치·자리·점프·출석**을 Realtime Database로 (`src/lib/room.ts`):
+  - `rooms/main/players`(이름·역할·자리·공부 시간), `pos`(위치, 초당 5번), `seats`(빈 자리만 차지 가능), `emotes`(점프), `attendance/{날짜}`(입장 시각·공부 시간)
+  - 창을 닫거나 연결이 끊기면 `onDisconnect`로 펭귄과 자리가 자동 정리. 다시 연결되면 자동 재입장
+  - 펭귄 ID = 계정 uid. 같은 계정으로 다른 탭에서 들어오면 예전 탭은 빠짐 (여러 펭귄 테스트는 다른 계정으로)
+  - 공부 중이면 1분마다 출석 기록에 공부 시간 저장 → 나갔다 와도 이어짐
+  - 말풍선·비밀 대화·신고·관리자는 아직 Socket.IO 서버 (같은 uid로 join)
+  - 검증: `npm run test:rules` (규칙 33개 항목), `npm run test:room` (두 펭귄 접속 흐름 18개 항목)
 - [ ] **F3 말풍선·@태그·출석부**
 - [ ] **F4 비밀 대화** (보안 규칙으로 두 사람만 읽기)
 - [ ] **F5 신고·관리자** (Cloud Function 스냅샷, 퇴장, 선생 역할 부여)
@@ -110,11 +115,12 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 
 ```bash
 npm run dev    # Next(3000) + 실시간 서버(3001) + Firebase 에뮬레이터(관리 화면 4000) 함께 실행
-npm run test:rules   # Firestore 보안 규칙 검증
-npm run bots   # (선택) 테스트용 봇 펭귄 8마리 입장 (비밀 대화 자동 수락, "쉬는중"은 거절)
+npm run test:rules   # Realtime Database 보안 규칙 검증
+npm run test:room    # 접속·이동·자리·점프·탭 이어받기·퇴장 흐름 검증
+npm run bots   # (선택) 테스트용 봇 펭귄 — F2 이후로는 Socket.IO에만 들어가 맵에는 안 보임 (F3 이후 정리)
 npm run test:dm      # 비밀 대화 서버 검증
 npm run test:report  # 신고·퇴장 정책 검증 (닉네임 "운영자"를 관리자로 사용)
 ADMIN_NAMES=운영자,펭귄대장 npm run dev   # 관리자 닉네임 지정
 ```
 에뮬레이터에서는 Google 대신 가짜 계정 선택 창이 떠요. 로컬 데이터는 `.data/emulators`에 남아요(Java 필요).
-여러 펭귄으로 테스트하려면 브라우저 탭을 여러 개 열어요. 탭마다 다른 펭귄으로 접속되고, 닉네임이 겹치면 입장이 거절돼요.
+여러 펭귄으로 테스트하려면 시크릿 창이나 다른 브라우저에서 **다른 계정**으로 로그인해요. 같은 계정으로 탭을 또 열면 예전 탭이 빠져요.

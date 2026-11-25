@@ -1,10 +1,10 @@
 /**
- * 계정: Google 로그인 + Firestore 프로필(users/{uid}) + 닉네임 예약(nicknames/{소문자 닉네임}).
- * 규칙은 firebase/firestore.rules 참고.
+ * 계정: Google 로그인 + Realtime Database 프로필(users/{uid}) + 닉네임 예약(nicknames/{소문자 닉네임}).
+ * 규칙은 firebase/database.rules.json 참고.
  */
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
-import { firebaseAuth, firestore } from "@/lib/firebase";
+import { get, ref, serverTimestamp, update } from "firebase/database";
+import { firebaseAuth, rtdb } from "@/lib/firebase";
 import { NICKNAME_RE, type Role } from "@/shared/protocol";
 
 export interface AccountProfile {
@@ -19,9 +19,9 @@ export type AccountState =
   | { status: "ready"; user: User; profile: AccountProfile };
 
 export async function loadAccountProfile(uid: string): Promise<AccountProfile | null> {
-  const snap = await getDoc(doc(firestore(), "users", uid));
+  const snap = await get(ref(rtdb(), `users/${uid}`));
   if (!snap.exists()) return null;
-  const d = snap.data();
+  const d = snap.val();
   return { name: String(d.name), role: (d.role as Role) ?? "student" };
 }
 
@@ -53,22 +53,22 @@ export async function signOutAccount() {
 
 export type CreateProfileError = "invalid" | "taken" | "unknown";
 
-/** 닉네임을 예약하고 프로필을 만듭니다(한 배치 — 둘 다 되거나 둘 다 안 됨). */
+/** 닉네임을 예약하고 프로필을 만듭니다(한 번의 다중 경로 쓰기 — 둘 다 되거나 둘 다 안 됨). */
 export async function createProfile(user: User, rawName: string): Promise<AccountProfile | CreateProfileError> {
   const name = rawName.trim();
   if (!NICKNAME_RE.test(name)) return "invalid";
-  const db = firestore();
-  const nickRef = doc(db, "nicknames", name.toLowerCase());
+  const db = rtdb();
+  const key = name.toLowerCase();
   try {
-    if ((await getDoc(nickRef)).exists()) return "taken";
-    const batch = writeBatch(db);
-    batch.set(nickRef, { uid: user.uid });
-    batch.set(doc(db, "users", user.uid), { name, role: "student", createdAt: serverTimestamp() });
-    await batch.commit();
+    if ((await get(ref(db, `nicknames/${key}`))).exists()) return "taken";
+    await update(ref(db), {
+      [`nicknames/${key}`]: user.uid,
+      [`users/${user.uid}`]: { name, role: "student", createdAt: serverTimestamp() },
+    });
     return { name, role: "student" };
   } catch (e) {
-    // 동시에 같은 닉네임을 잡으면 규칙(create만 허용)에 막혀 permission-denied 가 납니다.
-    if ((e as { code?: string })?.code === "permission-denied") return "taken";
+    // 동시에 같은 닉네임을 잡으면 규칙(비어 있을 때만 쓰기)에 막혀 PERMISSION_DENIED 가 납니다.
+    if (String((e as Error)?.message ?? e).includes("PERMISSION_DENIED")) return "taken";
     console.error("[account] 프로필 생성 실패", e);
     return "unknown";
   }

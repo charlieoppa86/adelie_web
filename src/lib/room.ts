@@ -1,0 +1,305 @@
+/**
+ * 스터디룸 접속·위치·자리·점프 — Realtime Database (rooms/main/...)
+ *
+ *   players/{uid}  이름·역할·자리·공부 시간 (자주 안 바뀜)
+ *   pos/{uid}      위치 {x, y, d, m} — 초당 몇 번씩 바뀌므로 따로 둬서 전송량을 줄임
+ *   seats/{seatId} 앉은 사람 uid — 비어 있을 때만 차지할 수 있음(규칙)
+ *   emotes/{uid}   마지막 점프 시각
+ *   attendance/{YYYY-MM-DD}/{uid}  오늘 입장 시각·공부 시간 (다시 들어와도 이어짐)
+ *
+ * 창을 닫거나 연결이 끊기면 onDisconnect 로 players·pos·emotes·seats 가 자동으로 지워집니다.
+ */
+import {
+  get,
+  onChildAdded,
+  onChildChanged,
+  onChildRemoved,
+  onDisconnect,
+  onValue,
+  ref,
+  remove,
+  serverTimestamp,
+  set,
+  update,
+  type Database,
+  type DatabaseReference,
+} from "firebase/database";
+import { rtdb } from "@/lib/firebase";
+import type { AccountProfile } from "@/lib/account";
+import { SEAT_BY_ID, SPAWN, STUDY_SEAT_KINDS } from "@/shared/officeMap";
+import type { MovePayload, PlayerState } from "@/shared/protocol";
+
+const ROOM = "rooms/main";
+/** 공부 중일 때 출석 기록에 공부 시간을 저장하는 간격 (창이 갑자기 닫혀도 최대 이만큼만 잃음) */
+const FLUSH_MS = 60_000;
+/** 이보다 오래된 점프 기록은 무시 (입장할 때 예전 점프가 다시 재생되지 않게) */
+const EMOTE_FRESH_MS = 3_000;
+
+export interface RoomEvents {
+  /** 입장 완료 (재연결 시에도 다시 불림) */
+  ready: (selfId: string) => void;
+  connection: (online: boolean) => void;
+  serverOffset: (ms: number) => void;
+  /** 펭귄 입장·정보 변경 (위치 포함 전체 상태) */
+  player: (p: PlayerState, joined: boolean) => void;
+  left: (id: string) => void;
+  moved: (id: string, m: MovePayload) => void;
+  emote: (id: string) => void;
+  /** 같은 계정이 다른 탭(기기)에서 입장해 이 탭은 빠짐 */
+  replaced: () => void;
+}
+
+export interface RoomHandle {
+  move: (m: MovePayload) => void;
+  /** 성공하면 true, 이미 누가 앉았으면 false */
+  sit: (seatId: string, dir: 1 | -1) => Promise<boolean>;
+  stand: () => void;
+  jump: () => void;
+  leave: () => Promise<void>;
+}
+
+const seoulDay = (ms: number) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+
+interface Meta {
+  name: string;
+  role: PlayerState["role"];
+  conn: string;
+  seatId?: string;
+  enteredAt: number;
+  studyMs: number;
+  studySince?: number;
+}
+interface Pos {
+  x: number;
+  y: number;
+  d: 1 | -1;
+  m: boolean;
+}
+
+/** db 는 테스트에서 사용자별 연결을 넘길 때만 지정합니다. */
+export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, db: Database = rtdb()): RoomHandle {
+  const r = (path: string) => ref(db, `${ROOM}/${path}`);
+  const conn = crypto.randomUUID();
+  const playerRef = r(`players/${uid}`);
+  const posRef = r(`pos/${uid}`);
+  const emoteRef = r(`emotes/${uid}`);
+
+  let offset = 0;
+  const now = () => Date.now() + offset;
+  let stopped = false;
+  let entered = false;
+  let seatRef: DatabaseReference | null = null;
+  /** 내 상태 (서버에서 돌아온 값 기준) */
+  let mine: Meta | null = null;
+  let myPos: Pos = { x: SPAWN.x + Math.round((Math.random() - 0.5) * 120), y: SPAWN.y, d: 1, m: false };
+
+  const metas = new Map<string, Meta>();
+  const poses = new Map<string, Pos>();
+  const merge = (id: string, m: Meta): PlayerState => {
+    const p = poses.get(id) ?? { x: SPAWN.x, y: SPAWN.y, d: 1, m: false };
+    return {
+      id,
+      name: m.name,
+      role: m.role,
+      x: p.x,
+      y: p.y,
+      dir: p.d,
+      moving: p.m,
+      seatId: m.seatId ?? null,
+      enteredAt: m.enteredAt,
+      studyMs: m.studyMs,
+      studySince: m.studySince ?? null,
+    };
+  };
+
+  const unsubs: (() => void)[] = [];
+
+  unsubs.push(
+    onValue(ref(db, ".info/serverTimeOffset"), (s) => {
+      offset = Number(s.val()) || 0;
+      on.serverOffset(offset);
+    }),
+  );
+
+  /** 연결될 때마다(처음·재연결) 내 펭귄을 다시 올립니다. 끊기면 서버가 onDisconnect 로 지웠기 때문. */
+  async function enter() {
+    await Promise.all([onDisconnect(playerRef).remove(), onDisconnect(posRef).remove(), onDisconnect(emoteRef).remove()]);
+    const t = now();
+    const attRef = ref(db, `attendance/${seoulDay(t)}/${uid}`);
+    let enteredAt = t;
+    let studyMs = 0;
+    if (mine) {
+      // 재연결: 끊긴 사이 자리는 풀렸으므로 공부 시간만 이어 받음
+      studyMs = mine.studyMs + (mine.studySince ? Math.max(0, t - mine.studySince) : 0);
+      enteredAt = mine.enteredAt;
+    } else {
+      const att = (await get(attRef)).val() as { enteredAt: number; studyMs: number } | null;
+      if (att) ({ enteredAt, studyMs } = att);
+    }
+    if (stopped) return;
+    seatRef = null;
+    await set(attRef, { enteredAt, studyMs });
+    myPos = { ...myPos, m: false };
+    await set(posRef, myPos);
+    await set(playerRef, { name: profile.name, role: profile.role, conn, enteredAt, studyMs } satisfies Meta);
+    if (stopped) return;
+    entered = true;
+    on.ready(uid);
+  }
+
+  /* 연결 상태 */
+  unsubs.push(
+    onValue(ref(db, ".info/connected"), (s) => {
+      const online = s.val() === true;
+      on.connection(online);
+      if (online && !stopped) {
+        enter().catch((e) => console.error("[room] 입장 실패", e));
+      }
+    }),
+  );
+
+  /* 펭귄 목록 */
+  const onMeta = (id: string, m: Meta, added: boolean) => {
+    if (id === uid) {
+      if (m.conn !== conn) {
+        if (entered) replacedByOtherTab();
+        return;
+      }
+      mine = m;
+    }
+    const isNew = !metas.has(id);
+    metas.set(id, m);
+    on.player(merge(id, m), added && isNew);
+  };
+  unsubs.push(onChildAdded(r("players"), (s) => onMeta(s.key!, s.val(), true)));
+  unsubs.push(onChildChanged(r("players"), (s) => onMeta(s.key!, s.val(), false)));
+  unsubs.push(
+    onChildRemoved(r("players"), (s) => {
+      const id = s.key!;
+      if (!metas.delete(id)) return;
+      poses.delete(id);
+      on.left(id);
+    }),
+  );
+
+  /* 위치 */
+  const onPos = (id: string, p: Pos) => {
+    poses.set(id, p);
+    if (id !== uid && metas.has(id)) on.moved(id, { x: p.x, y: p.y, dir: p.d, moving: p.m });
+  };
+  unsubs.push(onChildAdded(r("pos"), (s) => onPos(s.key!, s.val())));
+  unsubs.push(onChildChanged(r("pos"), (s) => onPos(s.key!, s.val())));
+
+  /* 점프 */
+  const onEmote = (id: string, at: unknown) => {
+    if (typeof at === "number" && now() - at < EMOTE_FRESH_MS) on.emote(id);
+  };
+  unsubs.push(onChildAdded(r("emotes"), (s) => onEmote(s.key!, s.val())));
+  unsubs.push(onChildChanged(r("emotes"), (s) => onEmote(s.key!, s.val())));
+
+  /* 공부 중이면 1분마다 출석 기록에 공부 시간 저장 */
+  const flushTimer = setInterval(() => {
+    if (!stopped && mine?.studySince) saveAttendance(mine.studyMs + Math.max(0, now() - mine.studySince));
+  }, FLUSH_MS);
+
+  function saveAttendance(studyMs: number) {
+    if (!mine) return;
+    set(ref(db, `attendance/${seoulDay(now())}/${uid}`), { enteredAt: mine.enteredAt, studyMs }).catch(() => {});
+  }
+
+  /** 자리에서 일어날 때 바뀌는 값 (공부 시간 정산 포함) */
+  function standPatch(): Record<string, unknown> {
+    const patch: Record<string, unknown> = {};
+    if (!mine?.seatId) return patch;
+    patch[`seats/${mine.seatId}`] = null;
+    patch[`players/${uid}/seatId`] = null;
+    if (mine.studySince) {
+      const studyMs = mine.studyMs + Math.max(0, now() - mine.studySince);
+      patch[`players/${uid}/studyMs`] = studyMs;
+      patch[`players/${uid}/studySince`] = null;
+      saveAttendance(studyMs);
+    }
+    return patch;
+  }
+
+  function stopListening() {
+    stopped = true;
+    clearInterval(flushTimer);
+    unsubs.splice(0).forEach((u) => u());
+  }
+
+  function replacedByOtherTab() {
+    // 다른 탭이 내 자리를 이어받음: 이 탭의 onDisconnect 가 그 탭의 펭귄을 지우지 않게 취소
+    stopListening();
+    void Promise.all([onDisconnect(playerRef).cancel(), onDisconnect(posRef).cancel(), onDisconnect(emoteRef).cancel()]);
+    if (seatRef) void onDisconnect(seatRef).cancel();
+    on.replaced();
+  }
+
+  return {
+    move(m) {
+      if (stopped || !entered) return;
+      myPos = { x: m.x, y: m.y, d: m.dir, m: m.moving };
+      set(posRef, myPos).catch(() => {});
+    },
+
+    async sit(seatId, dir) {
+      const seat = SEAT_BY_ID[seatId];
+      if (stopped || !entered || !seat || !mine) return false;
+      if (mine.seatId === seatId) return true;
+      const prevSeatRef = seatRef;
+      const patch = standPatch();
+      const study = STUDY_SEAT_KINDS.includes(seat.kind);
+      myPos = { x: seat.x, y: seat.y, d: dir, m: false };
+      Object.assign(patch, {
+        [`seats/${seatId}`]: uid,
+        [`players/${uid}/seatId`]: seatId,
+        [`players/${uid}/studySince`]: study ? serverTimestamp() : null,
+        [`pos/${uid}`]: myPos,
+      });
+      try {
+        await update(ref(db, ROOM), patch);
+      } catch {
+        return false; // 누가 먼저 앉음 (규칙: 빈 자리만 차지 가능)
+      }
+      seatRef = r(`seats/${seatId}`);
+      await onDisconnect(seatRef).remove();
+      if (prevSeatRef) void onDisconnect(prevSeatRef).cancel();
+      return true;
+    },
+
+    stand() {
+      if (stopped || !mine?.seatId) return;
+      const prevSeatRef = seatRef;
+      seatRef = null;
+      update(ref(db, ROOM), standPatch()).catch((e) => console.error("[room] 일어나기 실패", e));
+      if (prevSeatRef) void onDisconnect(prevSeatRef).cancel();
+    },
+
+    jump() {
+      if (!stopped && entered) set(emoteRef, serverTimestamp()).catch(() => {});
+    },
+
+    async leave() {
+      if (stopped) return;
+      standPatch(); // 공부 시간 정산·출석 저장 (펭귄 노드는 통째로 지우므로 패치는 자리만 씀)
+      const hadSeat = seatRef;
+      const seatId = mine?.seatId;
+      stopListening();
+      try {
+        await update(ref(db, ROOM), {
+          ...(seatId ? { [`seats/${seatId}`]: null } : {}),
+          [`players/${uid}`]: null,
+          [`pos/${uid}`]: null,
+          [`emotes/${uid}`]: null,
+        });
+      } catch {
+        await Promise.all([remove(playerRef), remove(posRef), remove(emoteRef)]).catch(() => {});
+      }
+      await Promise.all([onDisconnect(playerRef).cancel(), onDisconnect(posRef).cancel(), onDisconnect(emoteRef).cancel()]).catch(
+        () => {},
+      );
+      if (hadSeat) await onDisconnect(hadSeat).cancel().catch(() => {});
+    },
+  };
+}

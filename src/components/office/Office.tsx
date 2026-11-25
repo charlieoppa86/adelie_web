@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
-import { loadProfile, realtimeUrl, tabPlayerId } from "@/lib/localProfile";
+import { realtimeUrl } from "@/lib/localProfile";
 import { watchAccount } from "@/lib/account";
+import { joinRoom, type RoomHandle } from "@/lib/room";
 import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
 import {
@@ -34,7 +35,10 @@ type Pt = { x: number; y: number };
 const SEAT_LABEL = { desk: "집중 개인석", standing: "스탠딩석", cafe: "카페석", sofa: "카페 소파" } as const;
 
 const SPEED = 210; // px/s
-const SEND_EVERY = 66; // ms (~15Hz)
+/** 위치 전송 간격 — 전송량이 접속자 수의 제곱으로 늘어 비용에 직결되므로 초당 5번으로 제한 */
+const SEND_EVERY = 200; // ms (5Hz)
+/** 다른 펭귄 보간 속도 — 전송 간격이 길어진 만큼 부드럽게 따라가도록 낮춤 */
+const LERP_RATE = 6;
 const MIN_SCALE = 0.45;
 const MAX_SCALE = 1.25;
 
@@ -71,8 +75,11 @@ export function Office() {
   const [flags, setFlags] = useState<ModerationFlag[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [kicked, setKicked] = useState<{ message: string; until: number } | null>(null);
+  /** 관리자 여부: F5 전까지는 Socket.IO 서버(ADMIN_NAMES)가 정함 */
+  const [socketAdmin, setSocketAdmin] = useState(false);
 
   const socketRef = useRef<IoClient | null>(null);
+  const roomRef = useRef<RoomHandle | null>(null);
   const playersRef = useRef(players);
   const selfIdRef = useRef<string | null>(null);
   /** 렌더 위치: 내 펭귄은 로컬 입력, 다른 펭귄은 서버 위치(t)를 향해 보간 */
@@ -120,97 +127,106 @@ export function Office() {
     });
   }, []);
 
-  /* ---------- 로그인 확인 (로그아웃·프로필 없음 → 입장 화면으로) ---------- */
-  useEffect(
-    () =>
-      watchAccount((s) => {
-        if (s.status === "signedOut" || s.status === "needsProfile") router.replace("/");
-      }),
-    [router],
-  );
-
-  /* ---------- 실시간 연결 ---------- */
+  /* ---------- 입장: 로그인 확인 → Realtime Database(접속·위치·자리) + Socket.IO(말풍선·비밀 대화·신고) ---------- */
   useEffect(() => {
-    const profile = loadProfile();
-    if (!profile) {
-      router.replace("/");
-      return;
-    }
-    const id = tabPlayerId();
-    const socket: IoClient = io(realtimeUrl(), { transports: ["websocket"] });
-    socketRef.current = socket;
+    let room: RoomHandle | null = null;
+    let socket: IoClient | null = null;
 
-    socket.on("connect", () => socket.emit("join", { id, name: profile.name, role: profile.role }));
-    socket.on("disconnect", () => setConn("offline"));
-    socket.on("connect_error", () => setConn("offline"));
-    socket.on("init", ({ selfId, players: list, serverNow }) => {
-      selfIdRef.current = selfId;
-      pos.current.clear();
-      list.forEach((p) => pos.current.set(p.id, { x: p.x, y: p.y, tx: p.x, ty: p.y }));
-      setPlayers(Object.fromEntries(list.map((p) => [p.id, p])));
-      setSelfId(selfId);
-      setClockOffset(serverNow - Date.now());
-      setConn("ready");
-      setJoinError(null);
-    });
-    socket.on("join:error", ({ message }) => setJoinError(message));
-    socket.on("player:joined", (p) => {
-      upsert(p);
-      showToast(`${p.role === "teacher" ? "🎓 선생" : "🐧 학생"} 아델리 ${p.name} 님이 입장했어요`);
-    });
-    socket.on("player:updated", upsert);
-    socket.on("player:moved", ({ id: pid, x, y, dir, moving }) => {
-      const cur = pos.current.get(pid);
-      if (cur) Object.assign(cur, { tx: x, ty: y });
-      const prev = playersRef.current[pid];
-      if (prev && (prev.dir !== dir || prev.moving !== moving))
-        setPlayers((ps) => (ps[pid] ? { ...ps, [pid]: { ...ps[pid], dir, moving, x, y } } : ps));
-    });
-    socket.on("player:left", ({ id: pid }) => {
-      pos.current.delete(pid);
-      setPlayers((ps) => {
-        const { [pid]: gone, ...rest } = ps;
-        if (gone) showToast(`${gone.name} 님이 퇴장했어요`);
-        return rest;
+    const start = (uid: string, profile: { name: string; role: PlayerState["role"] }) => {
+      room = joinRoom(uid, profile, {
+        ready: (id) => {
+          selfIdRef.current = id;
+          setSelfId(id);
+          setConn("ready");
+        },
+        connection: (online) => setConn((c) => (online ? (c === "offline" ? "connecting" : c) : "offline")),
+        serverOffset: setClockOffset,
+        player: (p, joined) => {
+          upsert(p);
+          if (joined && p.id !== selfIdRef.current)
+            showToast(`${p.role === "teacher" ? "🎓 선생" : "🐧 학생"} 아델리 ${p.name} 님이 입장했어요`);
+        },
+        moved: (pid, { x, y, dir, moving }) => {
+          const cur = pos.current.get(pid);
+          if (cur) Object.assign(cur, { tx: x, ty: y });
+          const prev = playersRef.current[pid];
+          if (prev && (prev.dir !== dir || prev.moving !== moving))
+            setPlayers((ps) => (ps[pid] ? { ...ps, [pid]: { ...ps[pid], dir, moving, x, y } } : ps));
+        },
+        left: (pid) => {
+          pos.current.delete(pid);
+          setPlayers((ps) => {
+            const { [pid]: gone, ...rest } = ps;
+            if (gone) showToast(`${gone.name} 님이 퇴장했어요`);
+            return rest;
+          });
+          setSelectedId((s) => (s === pid ? null : s));
+        },
+        emote: (pid) => {
+          setJumping((j) => ({ ...j, [pid]: true }));
+          window.setTimeout(() => setJumping((j) => ({ ...j, [pid]: false })), 800);
+        },
+        replaced: () => {
+          setJoinError("다른 탭이나 기기에서 스터디룸에 들어가서 이 화면은 빠졌어요.");
+          socket?.disconnect();
+        },
       });
-      setSelectedId((s) => (s === pid ? null : s));
-    });
-    socket.on("player:emote", ({ id: pid }) => {
-      setJumping((j) => ({ ...j, [pid]: true }));
-      window.setTimeout(() => setJumping((j) => ({ ...j, [pid]: false })), 800);
-    });
-    socket.on("notice", ({ message }) => showToast(message));
-    dmBind(socket);
-    socket.on("admin:flags", ({ flags }) => setFlags(flags));
-    socket.on("admin:alert", ({ targetName, reporterCount }) =>
-      showToast(`🚨 ${targetName} 펭귄이 ${reporterCount}명에게 신고됐어요 — 확인이 필요해요`),
-    );
-    socket.on("kicked", (data) => {
-      setKicked(data);
-      socket.disconnect();
-    });
-    socket.on("chat", (msg) => {
-      const self = selfIdRef.current;
-      const mentionsMe = !!self && msg.playerId !== self && msg.mentions.some((m) => m.id === self);
-      setBubbles((b) => ({ ...b, [msg.playerId]: { msg, mentionsMe } }));
-      window.setTimeout(() => {
-        setBubbles((b) => {
-          if (b[msg.playerId]?.msg.id !== msg.id) return b;
-          const rest = { ...b };
-          delete rest[msg.playerId];
-          return rest;
-        });
-      }, BUBBLE_MS);
-      if (mentionsMe && self) {
-        showToast(`📣 ${msg.name} 님이 나를 불렀어요`);
-        setJumping((j) => ({ ...j, [self]: true }));
-        window.setTimeout(() => setJumping((j) => ({ ...j, [self]: false })), 800);
-      }
+      roomRef.current = room;
+
+      // 말풍선·비밀 대화·신고는 아직 Socket.IO 서버 (F3~F5에서 옮김). 펭귄 ID = 계정 uid
+      socket = io(realtimeUrl(), { transports: ["websocket"] });
+      socketRef.current = socket;
+      const s = socket;
+      s.on("connect", () => s.emit("join", { id: uid, name: profile.name, role: profile.role }));
+      s.on("init", ({ selfId: sid, players: list }) => setSocketAdmin(list.find((p) => p.id === sid)?.role === "admin"));
+      s.on("join:error", ({ message }) => {
+        setJoinError(message);
+        void room?.leave();
+      });
+      s.on("notice", ({ message }) => showToast(message));
+      dmBind(s);
+      s.on("admin:flags", ({ flags }) => setFlags(flags));
+      s.on("admin:alert", ({ targetName, reporterCount }) =>
+        showToast(`🚨 ${targetName} 펭귄이 ${reporterCount}명에게 신고됐어요 — 확인이 필요해요`),
+      );
+      s.on("kicked", (data) => {
+        setKicked(data);
+        s.disconnect();
+        void room?.leave();
+      });
+      s.on("chat", (msg) => {
+        const self = selfIdRef.current;
+        const mentionsMe = !!self && msg.playerId !== self && msg.mentions.some((m) => m.id === self);
+        setBubbles((b) => ({ ...b, [msg.playerId]: { msg, mentionsMe } }));
+        window.setTimeout(() => {
+          setBubbles((b) => {
+            if (b[msg.playerId]?.msg.id !== msg.id) return b;
+            const rest = { ...b };
+            delete rest[msg.playerId];
+            return rest;
+          });
+        }, BUBBLE_MS);
+        if (mentionsMe && self) {
+          showToast(`📣 ${msg.name} 님이 나를 불렀어요`);
+          setJumping((j) => ({ ...j, [self]: true }));
+          window.setTimeout(() => setJumping((j) => ({ ...j, [self]: false })), 800);
+        }
+      });
+    };
+
+    const stopWatching = watchAccount((a) => {
+      if (a.status === "signedOut" || a.status === "needsProfile") router.replace("/");
+      else if (a.status === "ready" && !room) start(a.user.uid, a.profile);
     });
 
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
+      stopWatching();
+      void room?.leave();
+      roomRef.current = null;
+      if (socket) {
+        socket.removeAllListeners();
+        socket.disconnect();
+      }
       socketRef.current = null;
     };
   }, [router, upsert, showToast, dmBind]);
@@ -224,7 +240,7 @@ export function Office() {
         e.preventDefault();
       } else if (e.code === "Space") {
         e.preventDefault();
-        if (!e.repeat) socketRef.current?.emit("emote", { emote: "jump" });
+        if (!e.repeat) roomRef.current?.jump();
       } else if (e.key === "Enter") {
         e.preventDefault();
         composerRef.current?.focus();
@@ -296,7 +312,14 @@ export function Office() {
             if (!path.current.points.length) {
               const seatId = path.current.seatId;
               path.current = null;
-              if (seatId) socketRef.current?.emit("sit", { seatId });
+              if (seatId) {
+                const room = roomRef.current;
+                room?.sit(seatId, meState.dir).then((ok) => {
+                  if (ok) return;
+                  const who = Object.values(playersRef.current).find((o) => o.seatId === seatId && o.id !== selfId);
+                  showToast(who ? `${who.name} 펭귄이 먼저 앉았어요.` : "앉지 못했어요. 다시 시도해 주세요.");
+                });
+              }
             }
           } else {
             vx = dx / dist;
@@ -309,7 +332,7 @@ export function Office() {
         if (len > 0) {
           if (meState.seatId && !standing) {
             standing = true;
-            socketRef.current?.emit("stand");
+            roomRef.current?.stand();
           }
           const step = (SPEED * dt) / len;
           const nx = me.x + vx * step;
@@ -337,12 +360,12 @@ export function Office() {
         if ((moved && t - lastSent > SEND_EVERY) || moved !== sentMoving) {
           lastSent = t;
           sentMoving = moved;
-          socketRef.current?.emit("move", { x: Math.round(me.x), y: Math.round(me.y), dir, moving: moved });
+          roomRef.current?.move({ x: Math.round(me.x), y: Math.round(me.y), dir, moving: moved });
         }
       }
 
       // 다른 펭귄 보간 + DOM 반영
-      const k = Math.min(1, dt * 12);
+      const k = Math.min(1, dt * LERP_RATE);
       pos.current.forEach((p, id) => {
         if (id !== selfId) {
           p.x += (p.tx - p.x) * k;
@@ -381,7 +404,7 @@ export function Office() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [selfId]);
+  }, [selfId, showToast]);
 
   /* ---------- 클릭 이동 ---------- */
   const toWorld = (clientX: number, clientY: number): Pt | null => {
@@ -419,6 +442,7 @@ export function Office() {
   const calledIds = useMemo(() => new Set(Object.values(bubbles).flatMap((b) => b.msg.mentions.map((m) => m.id))), [bubbles]);
   const sendChat = useCallback((text: string) => socketRef.current?.emit("chat", { text }), []);
   const selected = selectedId ? players[selectedId] : undefined;
+  const isAdmin = me?.role === "admin" || socketAdmin;
 
   if (kicked) {
     return (
@@ -443,7 +467,7 @@ export function Office() {
       <main className="glacier-sky flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-lg font-bold">{joinError}</p>
         <Link href="/" className="rounded-full bg-brand-500 px-6 py-3 font-bold text-white">
-          닉네임 바꾸러 가기
+          처음으로
         </Link>
       </main>
     );
@@ -474,7 +498,7 @@ export function Office() {
         </span>
         <WeatherChip weather={weather} onPreview={previewWeather} />
         <div className="ml-auto flex items-center gap-2">
-          {me?.role === "admin" && (
+          {isAdmin && (
             <button
               type="button"
               onClick={() => setAdminOpen((o) => !o)}
@@ -662,7 +686,7 @@ export function Office() {
               </div>
             )}
 
-            {adminOpen && me?.role === "admin" && (
+            {adminOpen && isAdmin && (
               <div className="absolute bottom-3 left-3 top-3 z-50">
                 <AdminPanel
                   flags={flags}

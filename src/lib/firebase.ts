@@ -7,12 +7,14 @@
  */
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectDatabaseEmulator, getDatabase, type Database } from "firebase/database";
+
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  projectId,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
@@ -22,7 +24,7 @@ const firebaseConfig = {
 export const USE_EMULATORS = process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1";
 
 let auth: Auth | undefined;
-let db: Firestore | undefined;
+let db: Database | undefined;
 
 /** HMR·중복 import 시에도 앱을 한 번만 만듭니다. */
 export function firebaseApp(): FirebaseApp {
@@ -37,10 +39,16 @@ export function firebaseAuth(): Auth {
   return auth;
 }
 
-export function firestore(): Firestore {
+/** Realtime Database — 계정 프로필·접속·위치·자리·출석 */
+export function rtdb(): Database {
   if (!db) {
-    db = getFirestore(firebaseApp());
-    if (USE_EMULATORS) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    if (USE_EMULATORS) {
+      // 에뮬레이터는 URL의 네임스페이스(<프로젝트>-default-rtdb)만 쓰고 주소는 아래에서 바꿉니다.
+      db = getDatabase(firebaseApp(), `https://${projectId}-default-rtdb.firebaseio.com`);
+      connectDatabaseEmulator(db, "127.0.0.1", 9000);
+    } else {
+      db = getDatabase(firebaseApp());
+    }
   }
   return db;
 }

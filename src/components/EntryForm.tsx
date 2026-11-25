@@ -10,7 +10,6 @@ import {
   type AccountState,
   type CreateProfileError,
 } from "@/lib/account";
-import { clearProfile, saveProfile } from "@/lib/localProfile";
 import { NICKNAME_RE } from "@/shared/protocol";
 
 const CARD = "mt-10 w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur";
@@ -32,10 +31,7 @@ export function EntryForm() {
 
   useEffect(
     () =>
-      watchAccount((s) => {
-        setAccount(s);
-        if (s.status === "signedOut") clearProfile();
-      }),
+      watchAccount(setAccount),
     [],
   );
 
@@ -107,11 +103,7 @@ export function EntryForm() {
       <button
         type="button"
         className={PRIMARY}
-        onClick={() => {
-          // F2 전까지 실시간 서버가 쓰는 브라우저 저장 프로필에 넘겨 줍니다.
-          saveProfile(profile);
-          router.push("/office");
-        }}
+        onClick={() => router.push("/office")}
       >
         스터디룸 입장하기
       </button>

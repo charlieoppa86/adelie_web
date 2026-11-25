@@ -1,6 +1,87 @@
 {
   "rules": {
     ".read": false,
-    ".write": false
+    ".write": false,
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid && !data.exists()",
+        ".validate": "newData.hasChildren(['name', 'role', 'createdAt'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().matches(/^[가-힣a-zA-Z0-9_]{2,12}$/) && newData.parent().parent().parent().child('nicknames').child(newData.val().toLowerCase()).val() === $uid"
+        },
+        "role": { ".validate": "newData.val() === 'student'" },
+        "createdAt": { ".validate": "newData.val() === now" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "nicknames": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
+        ".validate": "newData.parent().parent().child('users').child(auth.uid).child('name').val().toLowerCase() === $key"
+      }
+    },
+
+    "rooms": {
+      "$room": {
+        ".read": "auth != null && root.child('users').child(auth.uid).exists()",
+
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['name', 'role', 'conn', 'enteredAt', 'studyMs'])",
+            "name": { ".validate": "newData.val() === root.child('users').child($uid).child('name').val()" },
+            "role": { ".validate": "newData.val() === root.child('users').child($uid).child('role').val()" },
+            "conn": { ".validate": "newData.isString() && newData.val().length <= 64" },
+            "seatId": { ".validate": "newData.isString() && newData.val().length <= 32" },
+            "enteredAt": { ".validate": "newData.isNumber()" },
+            "studyMs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "studySince": { ".validate": "newData.isNumber() && newData.val() <= now" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "pos": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['x', 'y', 'd', 'm'])",
+            "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1600" },
+            "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+            "d": { ".validate": "newData.val() === 1 || newData.val() === -1" },
+            "m": { ".validate": "newData.isBoolean()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "seats": {
+          "$seatId": {
+            ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))"
+          }
+        },
+
+        "emotes": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+
+    "attendance": {
+      "$day": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['enteredAt', 'studyMs'])",
+          "enteredAt": { ".validate": "newData.isNumber() && (!data.exists() || newData.val() === data.val())" },
+          "studyMs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
   }
 }
