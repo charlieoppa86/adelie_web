@@ -12,7 +12,7 @@ import {
 } from "@/lib/account";
 import { NICKNAME_RE } from "@/shared/protocol";
 
-const CARD = "mt-10 w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur";
+const CARD = "w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur";
 const PRIMARY =
   "mt-6 w-full rounded-full bg-brand-500 py-3.5 font-extrabold text-white shadow-brand transition hover:bg-brand-400 active:scale-[.98] disabled:opacity-60";
 
