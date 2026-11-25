@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 /** 모바일로 들어오면 화면은 그대로 보여 주고, 잠시 뒤 PC 이용을 권하는 안내를 띄움 */
 const DELAY_MS = 3000;
 const SEEN_KEY = "adelie.mobileNoticeSeen";
+/** 확인을 누르면 돌아갈 랜딩 메인 */
+const LANDING_URL = "https://adelie-ai.vercel.app/";
 
 function isMobile(): boolean {
   const ua = navigator.userAgent;
@@ -49,7 +51,7 @@ export function MobileNotice() {
         <button
           type="button"
           autoFocus
-          onClick={() => setOpen(false)}
+          onClick={() => window.location.assign(LANDING_URL)}
           className="mt-5 w-full rounded-full bg-brand-500 py-3 font-extrabold text-white transition hover:bg-brand-400 active:scale-[.98]"
         >
           확인
