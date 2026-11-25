@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { MobileNotice } from "@/components/MobileNotice";
 
 export const metadata: Metadata = {
   title: { default: "남극AI빌리지", template: "%s · 남극AI빌리지" },
@@ -21,7 +22,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* 모바일이면 잠시 뒤 PC 이용 안내 (입장 화면·스터디룸 모두) */}
+        <MobileNotice />
+      </body>
     </html>
   );
 }
