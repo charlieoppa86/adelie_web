@@ -171,7 +171,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     on.ready(uid);
   }
 
-  /* 관리자가 역할(선생·학생)을 바꾸면 내 펭귄에도 반영 (규칙: 펭귄 역할 = 프로필 역할) */
+  /* 관리자가 역할(강사·학생)을 바꾸면 내 펭귄에도 반영 (규칙: 펭귄 역할 = 프로필 역할) */
   unsubs.push(
     onValue(ref(db, `users/${uid}/role`), (s) => {
       const next = s.val() as PlayerState["role"] | null;

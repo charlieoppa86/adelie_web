@@ -98,7 +98,7 @@ export function EntryForm() {
     <div className={CARD}>
       <p className="text-center text-sm text-ink-300">{user.email}</p>
       <p className="mt-1 text-center text-lg font-extrabold">
-        {profile.role === "teacher" ? "🎓 선생" : "🎒 학생"} 아델리 <span className="text-brand-300">{profile.name}</span>
+        {profile.role === "teacher" ? "🎓 강사" : "🎒 학생"} 아델리 <span className="text-brand-300">{profile.name}</span>
       </p>
       <button
         type="button"
@@ -158,7 +158,7 @@ function NicknameForm(props: {
       <p id="nick-help" className={`mt-1.5 text-xs ${message ? "text-coral-300" : "text-ink-400"}`}>
         {message ?? "한글·영문·숫자·_ 2~12자 (띄어쓰기 없이 — @태그에 쓰여요). 정하면 바꿀 수 없어요."}
       </p>
-      <p className="mt-3 text-xs text-ink-400">처음엔 🎒 학생 아델리로 시작하고, 선생 역할은 관리자가 부여해요.</p>
+      <p className="mt-3 text-xs text-ink-400">처음엔 🎒 학생 아델리로 시작하고, 강사 역할은 관리자가 부여해요.</p>
       <button type="submit" disabled={props.busy} className={PRIMARY}>
         이 닉네임으로 시작하기
       </button>

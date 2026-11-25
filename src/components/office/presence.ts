@@ -36,7 +36,7 @@ export function presenceOf(p: PlayerState): Presence {
 
 export const ROLE_LABEL: Record<PlayerState["role"], string> = {
   student: "학생",
-  teacher: "선생",
+  teacher: "강사",
   admin: "관리자",
 };
 

@@ -177,7 +177,7 @@ async function main() {
 
   console.log("역할 · 퇴장");
   await setRole(c.uid, "teacher", adm.db);
-  ok("관리자가 C에게 선생 역할 → 다른 펭귄 화면에도 반영", await until(() => a.seen.get(c.uid)?.role === "teacher"));
+  ok("관리자가 C에게 강사 역할 → 다른 펭귄 화면에도 반영", await until(() => a.seen.get(c.uid)?.role === "teacher"));
   ok("학생이 역할을 바꿀 수 없음", await setRole(b.uid, "teacher", a.db).then(() => false, () => true));
   let bannedUntil: number | null = null;
   const unBan = watchBan(b.uid, (u) => (bannedUntil = u), b.db);

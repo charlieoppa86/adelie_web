@@ -145,7 +145,7 @@ export function Office() {
         player: (p, joined) => {
           upsert(p);
           if (joined && p.id !== selfIdRef.current)
-            showToast(`${p.role === "teacher" ? "🎓 선생" : "🐧 학생"} 아델리 ${p.name} 님이 입장했어요`);
+            showToast(`${p.role === "teacher" ? "🎓 강사" : "🐧 학생"} 아델리 ${p.name} 님이 입장했어요`);
         },
         moved: (pid, { x, y, dir, moving }) => {
           const cur = pos.current.get(pid);
@@ -686,12 +686,12 @@ export function Office() {
                     onClick={() => {
                       const next = selected.role === "teacher" ? "student" : "teacher";
                       setRole(selected.id, next)
-                        .then(() => showToast(`${selected.name} 님을 ${next === "teacher" ? "🎓 선생" : "🎒 학생"} 아델리로 바꿨어요`))
+                        .then(() => showToast(`${selected.name} 님을 ${next === "teacher" ? "🎓 강사" : "🎒 학생"} 아델리로 바꿨어요`))
                         .catch(() => showToast("역할을 바꾸지 못했어요."));
                     }}
                     className="mt-2 w-full rounded-xl border border-white/15 py-2 text-xs font-bold text-ink-200 hover:bg-white/5"
                   >
-                    🛡️ {selected.role === "teacher" ? "학생으로 되돌리기" : "선생 역할 주기"}
+                    🛡️ {selected.role === "teacher" ? "학생으로 되돌리기" : "강사 역할 주기"}
                   </button>
                 )}
               </div>

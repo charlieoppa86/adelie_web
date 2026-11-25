@@ -23,12 +23,12 @@ export default function Home() {
         </span>
       </h1>
       <p className="mt-4 max-w-md text-center text-ink-300">
-        선생 아델리와 학생 아델리가 남극 빙붕 위에 모여 AI를 공부해요. 누가 출석했는지 실시간으로 보고, 말풍선으로 대화해요.
+        강사 아델리와 학생 아델리가 남극 빙붕 위에 모여 AI를 공부해요. 누가 출석했는지 실시간으로 보고, 말풍선으로 대화해요.
       </p>
 
-      {/* 펭귄 미리보기: 선생 1 + 학생 3 */}
+      {/* 펭귄 미리보기: 강사 1 + 학생 3 */}
       <div className="mt-10 flex items-end justify-center gap-2 sm:gap-4" aria-label="공부하는 펭귄들">
-        <Penguin cap pointer wave="r" anim={["waddle", "point"]} className="w-28 sm:w-36" title="선생 아델리" />
+        <Penguin cap pointer wave="r" anim={["waddle", "point"]} className="w-28 sm:w-36" title="강사 아델리" />
         <Penguin laptop look={[0, 4]} anim={["type"]} delay={0.2} className="w-24 sm:w-28" title="노트북으로 공부하는 학생 아델리" />
         <Penguin book expr="happy" anim={["waddle"]} delay={0.4} className="w-24 sm:w-28" title="책을 읽는 학생 아델리" />
         <Penguin laptop sparkles anim={["bounce", "type"]} delay={0.1} className="w-24 sm:w-28" title="신난 학생 아델리" />

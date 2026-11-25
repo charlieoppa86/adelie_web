@@ -58,14 +58,14 @@ await check("로그인 안 하면 가입 불가", () => assertFails(signup(anon,
 await check("닉네임 예약 없이 프로필만 만들면 거부", () =>
   assertFails(set(ref(db(alice), "users/alice"), { name: "앨리스", role: "student", createdAt: serverTimestamp() })),
 );
-await check("처음부터 선생 역할로 가입하면 거부", () => assertFails(signup(alice, "alice", "앨리스", { role: "teacher" })));
+await check("처음부터 강사 역할로 가입하면 거부", () => assertFails(signup(alice, "alice", "앨리스", { role: "teacher" })));
 await check("잘못된 닉네임(공백 포함) 거부", () => assertFails(signup(alice, "alice", "앨 리스")));
 await check("남의 uid로 가입하면 거부", () => assertFails(signup(alice, "bob", "가짜밥")));
 await check("정상 가입 (한글 닉네임)", () => assertSucceeds(signup(alice, "alice", "펭귄Penguin")));
 await check("가입 후 다른 닉네임으로 또 가입 불가", () => assertFails(signup(alice, "alice", "두번째")));
 await check("대소문자만 다른 닉네임은 중복으로 거부", () => assertFails(signup(bob, "bob", "펭귄penguin")));
 await check("다른 닉네임으로 bob 가입", () => assertSucceeds(signup(bob, "bob", "밥펭귄")));
-await check("스스로 선생으로 승격 불가", () => assertFails(set(ref(db(alice), "users/alice/role"), "teacher")));
+await check("스스로 강사으로 승격 불가", () => assertFails(set(ref(db(alice), "users/alice/role"), "teacher")));
 await check("닉네임 예약을 빼앗을 수 없음", () => assertFails(set(ref(db(bob), "nicknames/펭귄penguin"), "bob")));
 await check("로그인 안 하면 프로필 읽기 불가", () => assertFails(get(ref(db(anon), "users/alice"))));
 
@@ -74,7 +74,7 @@ await check("프로필 없는 계정은 스터디룸 못 봄", () => assertFails
 await check("가입한 펭귄은 스터디룸 볼 수 있음", () => assertSucceeds(get(ref(db(bob), "rooms/main"))));
 await check("내 이름으로 입장", () => assertSucceeds(set(ref(db(alice), "rooms/main/players/alice"), meta("펭귄Penguin"))));
 await check("남의 닉네임으로 입장하면 거부", () => assertFails(set(ref(db(bob), "rooms/main/players/bob"), meta("펭귄Penguin"))));
-await check("역할을 선생으로 속여 입장하면 거부", () =>
+await check("역할을 강사으로 속여 입장하면 거부", () =>
   assertFails(set(ref(db(bob), "rooms/main/players/bob"), meta("밥펭귄", { role: "teacher" }))),
 );
 await check("bob 입장", () => assertSucceeds(set(ref(db(bob), "rooms/main/players/bob"), meta("밥펭귄"))));

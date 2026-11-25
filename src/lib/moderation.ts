@@ -3,7 +3,7 @@
  *
  *   moderation/flagged/{대상 uid}  서로 다른 신고자 2명 이상인 신고만 (Cloud Function 이 씀, 관리자만 읽음)
  *   bans/{uid}                    {until, by}  퇴장 — 기간 동안 스터디룸에 다시 못 들어옴(규칙)
- *   users/{uid}/role              관리자가 선생·학생 역할 부여
+ *   users/{uid}/role              관리자가 강사·학생 역할 부여
  *
  * 관리자 지정: 콘솔에서 users/{uid}/role 을 "admin" 으로 직접 바꿉니다.
  */
@@ -76,7 +76,7 @@ export function dismiss(targetId: string, db: Database = rtdb()) {
   return update(ref(db), { [`moderation/flagged/${targetId}`]: null, [`moderation/held/${targetId}`]: null });
 }
 
-/** 관리자: 선생·학생 역할 부여 */
+/** 관리자: 강사·학생 역할 부여 */
 export function setRole(targetId: string, role: "student" | "teacher", db: Database = rtdb()) {
   return set(ref(db, `users/${targetId}/role`), role);
 }
