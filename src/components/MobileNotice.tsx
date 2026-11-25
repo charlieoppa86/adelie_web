@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LANDING_URL } from "@/lib/links";
 
 /** 모바일로 들어오면 화면은 그대로 보여 주고, 잠시 뒤 PC 이용을 권하는 안내를 띄움 */
 const DELAY_MS = 3000;
 const SEEN_KEY = "adelie.mobileNoticeSeen";
-/** 확인을 누르면 돌아갈 랜딩 메인 */
-const LANDING_URL = "https://adelie-ai.vercel.app/";
 
 function isMobile(): boolean {
   const ua = navigator.userAgent;

@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { watchAccount } from "@/lib/account";
+import { LANDING_URL } from "@/lib/links";
 import { startDm, type DmHandle } from "@/lib/dm";
 import { dismiss, kick, setRole, watchBan, watchFlags, type FlaggedTarget } from "@/lib/moderation";
 import { joinRoom, type RoomHandle } from "@/lib/room";
@@ -479,6 +479,14 @@ export function Office() {
     [flagged, players],
   );
 
+  /** 나가기: 자리·위치를 먼저 정리하고 랜딩 메인으로 (정리가 늦어도 1초 뒤엔 이동) */
+  const exitToLanding = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // 새 탭으로 열기는 그대로
+    e.preventDefault();
+    const cleanup = Promise.allSettled([dmRef.current?.stop(), roomRef.current?.leave()]);
+    void Promise.race([cleanup, new Promise((r) => setTimeout(r, 1000))]).then(() => window.location.assign(LANDING_URL));
+  };
+
   if (kicked) {
     return (
       <main className="glacier-sky flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -490,9 +498,9 @@ export function Office() {
           {new Date(kicked.until).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} 이후에
           다시 들어올 수 있어요.
         </p>
-        <Link href="/?stay=1" className="mt-2 rounded-full bg-white/10 px-6 py-3 font-bold text-white">
+        <a href={LANDING_URL} className="mt-2 rounded-full bg-white/10 px-6 py-3 font-bold text-white">
           처음으로
-        </Link>
+        </a>
       </main>
     );
   }
@@ -501,9 +509,9 @@ export function Office() {
     return (
       <main className="glacier-sky flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-lg font-bold">{joinError}</p>
-        <Link href="/?stay=1" className="rounded-full bg-brand-500 px-6 py-3 font-bold text-white">
+        <a href={LANDING_URL} className="rounded-full bg-brand-500 px-6 py-3 font-bold text-white">
           처음으로
-        </Link>
+        </a>
       </main>
     );
   }
@@ -512,10 +520,10 @@ export function Office() {
     <div className="flex h-dvh flex-col overflow-hidden bg-night">
       {/* 상단 바 */}
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
-        <Link href="/?stay=1" className="flex items-center gap-2">
+        <a href={LANDING_URL} onClick={exitToLanding} className="flex items-center gap-2">
           <Image src="/brand/logo-mark.svg" alt="" width={28} height={28} />
           <span className="font-extrabold">남극AI빌리지</span>
-        </Link>
+        </a>
         <span
           className={`ml-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
             conn === "ready"
@@ -560,9 +568,9 @@ export function Office() {
           >
             출석부
           </button>
-          <Link href="/?stay=1" className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-bold text-ink-200 hover:bg-white/5">
+          <a href={LANDING_URL} onClick={exitToLanding} className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-bold text-ink-200 hover:bg-white/5">
             나가기
-          </Link>
+          </a>
         </div>
       </header>
 
