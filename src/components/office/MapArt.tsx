@@ -277,7 +277,7 @@ export const MapFloor = memo(function MapFloor() {
         <text x="838" y="108" fontSize="15" fontWeight="800" fill="#146b94">
           오늘의 목표 ✔
         </text>
-        {["강의 1개 듣기", "스터디 노트 정리", "질문 3개 하기"].map((t, i) => (
+        {["30분간 뭐라도 하기", "다른 펭귄과 인사하기", "필요한 기능 제안하기"].map((t, i) => (
           <g key={t}>
             <rect x="838" y={118 + i * 21} width="13" height="13" rx="3" fill="none" stroke="#57b8e0" strokeWidth="2" />
             {i === 0 && <path d="M841 124l3 4l6 -8" stroke="#1fa97a" strokeWidth="2.5" fill="none" />}
