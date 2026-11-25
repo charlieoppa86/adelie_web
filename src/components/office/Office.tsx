@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { loadProfile, realtimeUrl, tabPlayerId } from "@/lib/localProfile";
+import { watchAccount } from "@/lib/account";
 import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
 import {
@@ -118,6 +119,15 @@ export function Office() {
       return next;
     });
   }, []);
+
+  /* ---------- 로그인 확인 (로그아웃·프로필 없음 → 입장 화면으로) ---------- */
+  useEffect(
+    () =>
+      watchAccount((s) => {
+        if (s.status === "signedOut" || s.status === "needsProfile") router.replace("/");
+      }),
+    [router],
+  );
 
   /* ---------- 실시간 연결 ---------- */
   useEffect(() => {

@@ -1,5 +1,6 @@
 /**
- * 임시 입장 정보 — Google 로그인(마지막 단계)으로 교체될 예정.
+ * 브라우저 저장 프로필 — F1에서 Google 로그인 후 계정 프로필을 여기에 복사해 Socket.IO 서버에 넘깁니다.
+ * F2(Realtime Database 이전)에서 이 파일은 없어질 예정입니다.
  * 닉네임·역할은 브라우저에 저장하고, 탭마다 다른 펭귄 ID를 써서 탭 여러 개로 다중 접속을 테스트할 수 있게 합니다.
  */
 import type { Role } from "@/shared/protocol";
@@ -25,6 +26,10 @@ export function loadProfile(): LocalProfile | null {
 
 export function saveProfile(p: LocalProfile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+}
+
+export function clearProfile() {
+  localStorage.removeItem(PROFILE_KEY);
 }
 
 /** 탭별 고유 ID (새로고침해도 유지, 탭마다 다름) */

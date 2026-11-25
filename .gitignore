@@ -42,3 +42,10 @@ next-env.d.ts
 
 # 로컬 개발용 신고·퇴장 기록
 .data/
+
+# firebase
+firebase-debug.log*
+firestore-debug.log*
+database-debug.log*
+ui-debug.log*
+.firebase/
