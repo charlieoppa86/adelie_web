@@ -115,6 +115,100 @@ await check("공부 시간 갱신", () =>
 );
 await check("남의 출석 기록은 못 봄", () => assertFails(get(ref(db(bob), "attendance/2026-11-25/alice"))));
 
+console.log("스터디 LIVE");
+const dave = env.authenticatedContext("dave");
+const erin = env.authenticatedContext("erin");
+await check("dave 가입", () => assertSucceeds(signup(dave, "dave", "관리펭귄")));
+await check("erin 가입", () => assertSucceeds(signup(erin, "erin", "강사펭귄")));
+// 역할은 콘솔·관리자만 바꾸므로 테스트에서는 규칙을 끄고 지정 (alice · dave 관리자, erin 강사)
+await env.withSecurityRulesDisabled(async (ctx) => {
+  await set(ref(ctx.database(), "users/alice/role"), "admin");
+  await set(ref(ctx.database(), "users/dave/role"), "admin");
+  await set(ref(ctx.database(), "users/erin/role"), "teacher");
+});
+const BC = "rooms/main/broadcast";
+const lecture = (uid: string, name: string, extra: Record<string, unknown> = {}) => ({
+  hostUid: uid,
+  hostName: name,
+  mode: "live",
+  kind: "youtube",
+  videoId: "dQw4w9WgXcQ",
+  url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  startedAt: serverTimestamp(),
+  endsAt: Date.now() + 3_600_000,
+  ...extra,
+});
+await check("학생은 강의를 만들 수 없음", () => assertFails(set(ref(db(bob), BC), lecture("bob", "밥펭귄"))));
+await check("강사도 강의를 만들 수 없음 (관리자만)", () => assertFails(set(ref(db(erin), BC), lecture("erin", "강사펭귄"))));
+await check("남의 이름으로 강의를 만들 수 없음", () => assertFails(set(ref(db(alice), BC), lecture("alice", "밥펭귄"))));
+await check("남을 진행자로 적을 수 없음", () => assertFails(set(ref(db(alice), BC), lecture("bob", "밥펭귄"))));
+await check("영상 ID와 다른 유튜브 주소 거부", () =>
+  assertFails(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { url: "https://evil.example/watch?v=dQw4w9WgXcQ" }))),
+);
+await check("지원하지 않는 주소 거부", () =>
+  assertFails(
+    set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { kind: "zoom", videoId: null, url: "https://zoom.evil.com/j/1" })),
+  ),
+);
+await check("javascript: 주소 거부", () =>
+  assertFails(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { kind: "zoom", videoId: null, url: "javascript:alert(1)" }))),
+);
+await check("시작 시각을 속이면 거부", () =>
+  assertFails(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { startedAt: Date.now() - 1000 }))),
+);
+await check("관리자가 유튜브 강의 만들기", () => assertSucceeds(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin"))));
+await check("모든 펭귄이 강의를 볼 수 있음", () => assertSucceeds(get(ref(db(bob), BC))));
+await check("강의 중에는 다른 관리자도 새 강의를 못 만듦 (한 번에 1명)", () =>
+  assertFails(set(ref(db(dave), BC), lecture("dave", "관리펭귄"))),
+);
+await check("진행자도 강의 중에 덮어쓸 수 없음", () =>
+  assertFails(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { kind: "meet", videoId: null, url: "https://meet.google.com/abc-defg-hij" }))),
+);
+await check("학생은 강의를 끝낼 수 없음", () => assertFails(remove(ref(db(bob), BC))));
+await check("강사도 강의를 끝낼 수 없음", () => assertFails(remove(ref(db(erin), BC))));
+await check("관리자가 30분 연장", () => assertSucceeds(update(ref(db(alice), BC), { endsAt: Date.now() + 5_400_000 })));
+await check("다른 관리자도 연장 가능", () => assertSucceeds(update(ref(db(dave), BC), { endsAt: Date.now() + 7_200_000 })));
+await check("학생은 연장 불가", () => assertFails(update(ref(db(bob), BC), { endsAt: Date.now() + 9_000_000 })));
+await check("24시간 넘게 연장 불가", () => assertFails(update(ref(db(alice), BC), { endsAt: Date.now() + 25 * 3_600_000 })));
+await check("이미 지난 시각으로 바꿀 수 없음", () => assertFails(update(ref(db(alice), BC), { endsAt: Date.now() - 1000 })));
+await check("진행 중에는 진행자를 바꿀 수 없음", () => assertFails(update(ref(db(dave), BC), { hostUid: "dave", hostName: "관리펭귄" })));
+await check("유튜브 LIVE → 다시보기(기존 영상) 전환", () =>
+  assertSucceeds(update(ref(db(alice), BC), { mode: "vod", endsAt: Date.now() + 23 * 3_600_000 })),
+);
+await check("진행자가 강의 끝내기", () => assertSucceeds(remove(ref(db(alice), BC))));
+await check("구글 미트 강의", () =>
+  assertSucceeds(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { kind: "meet", videoId: null, url: "https://meet.google.com/abc-defg-hij" }))),
+);
+await check("다른 관리자가 강의 끝내기", () => assertSucceeds(remove(ref(db(dave), BC))));
+await check("관리자가 줌 강의 만들기", () =>
+  assertSucceeds(
+    set(ref(db(dave), BC), lecture("dave", "관리펭귄", { kind: "zoom", videoId: null, url: "https://us02web.zoom.us/j/1234567890?pwd=abc" })),
+  ),
+);
+await check("줌 LIVE는 다시보기로 전환 불가", () =>
+  assertFails(update(ref(db(dave), BC), { mode: "vod", endsAt: Date.now() + 3_600_000 })),
+);
+await check("방식(mode)이 없으면 거부", () => assertSucceeds(remove(ref(db(dave), BC))).then(() =>
+  assertFails(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { mode: null }))),
+));
+await check("줌은 기존 영상으로 등록 불가", () =>
+  assertFails(
+    set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { mode: "vod", kind: "zoom", videoId: null, url: "https://zoom.us/j/1" })),
+  ),
+);
+await check("기존 유튜브 영상 등록", () => assertSucceeds(set(ref(db(alice), BC), lecture("alice", "펭귄Penguin", { mode: "vod" }))));
+await check("종료 시각이 지난 강의는 다른 관리자가 새 강의로 덮어쓰기", async () => {
+  await env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), `${BC}/endsAt`), Date.now() - 1000));
+  await assertSucceeds(set(ref(db(dave), BC), lecture("dave", "관리펭귄")));
+});
+await check("종료 시각이 없으면 거부", async () => {
+  await assertSucceeds(remove(ref(db(dave), BC)));
+  await assertFails(set(ref(db(dave), BC), lecture("dave", "관리펭귄", { endsAt: null })));
+});
+await check("종료 시각이 24시간 넘으면 거부", () =>
+  assertFails(set(ref(db(dave), BC), lecture("dave", "관리펭귄", { endsAt: Date.now() + 25 * 3_600_000 }))),
+);
+
 await env.cleanup();
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 process.exit(fail ? 1 : 0);

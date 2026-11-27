@@ -111,6 +111,37 @@
             ".write": "auth != null && ((auth.uid === $uid) || (root.child('users').child(auth.uid).child('role').val() === 'admin' && !newData.exists()))",
             ".validate": "newData.isNumber() && newData.val() <= now"
           }
+        },
+        "broadcast": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && (!newData.exists() || !data.exists() || !data.child('endsAt').exists() || data.child('endsAt').val() <= now || (newData.child('startedAt').val() === data.child('startedAt').val() && newData.child('hostUid').val() === data.child('hostUid').val()))",
+          ".validate": "newData.hasChildren(['hostUid', 'hostName', 'mode', 'kind', 'url', 'startedAt', 'endsAt'])",
+          "hostUid": {
+            ".validate": "newData.val() === auth.uid || newData.val() === data.val()"
+          },
+          "hostName": {
+            ".validate": "newData.val() === data.val() || newData.val() === root.child('users').child(auth.uid).child('name').val()"
+          },
+          "mode": {
+            ".validate": "newData.val() === 'live' || (newData.val() === 'vod' && newData.parent().child('kind').val() === 'youtube')"
+          },
+          "kind": {
+            ".validate": "newData.val() === 'youtube' || newData.val() === 'zoom' || newData.val() === 'meet'"
+          },
+          "url": {
+            ".validate": "newData.isString() && newData.val().length <= 500 && ((newData.parent().child('kind').val() === 'youtube' && newData.val() === 'https://www.youtube.com/watch?v=' + newData.parent().child('videoId').val()) || (newData.parent().child('kind').val() === 'meet' && newData.val().matches(/^https:\\/\\/meet\\.google\\.com\\/[a-z][a-z][a-z]-[a-z][a-z][a-z][a-z]-[a-z][a-z][a-z]$/)) || (newData.parent().child('kind').val() === 'zoom' && newData.val().matches(/^https:\\/\\/([a-z0-9-]+\\.)*zoom\\.(us|com)\\/[^ ]+$/)))"
+          },
+          "videoId": {
+            ".validate": "newData.parent().child('kind').val() === 'youtube' && newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{11}$/)"
+          },
+          "startedAt": {
+            ".validate": "newData.val() === now || newData.val() === data.val()"
+          },
+          "endsAt": {
+            ".validate": "newData.isNumber() && newData.val() > now && newData.val() <= now + 86400000"
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       }
     },

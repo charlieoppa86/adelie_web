@@ -3,7 +3,7 @@
  * 모두 정적 SVG이고, 움직임은 CSS 애니메이션 몇 개(오로라·전구·유빙·김·물고기)만 씁니다.
  */
 import { memo } from "react";
-import { DIVIDER_SEGMENTS, PROPS, SEATS, WORLD, ZONES, type MapProp } from "@/shared/officeMap";
+import { DIVIDER_SEGMENTS, FLOOR_TRANSFORM, PROPS, SEATS, WALL_BASE, WORLD, ZONES, fy, type MapProp } from "@/shared/officeMap";
 
 const BOOKS = ["#ec7a5f", "#ffd66b", "#5ff2c1", "#2fa8d9", "#8b7bff", "#f6a894"];
 const SNOW = "#fbfeff";
@@ -19,6 +19,7 @@ const CLIFF_TOP =
 export const MapFloor = memo(function MapFloor() {
   const { w, h } = WORLD;
   const [focus, standing] = ZONES;
+  // 바닥 그림은 처음 설계 좌표(빙벽 밑선 200 ~ 아래 962)로 그리고 FLOOR_TRANSFORM 으로 세로를 줄임
   const top = 200;
   const bottom = 962;
   return (
@@ -60,6 +61,7 @@ export const MapFloor = memo(function MapFloor() {
       </defs>
 
       {/* 바다 · 하늘 · 설산 · 동물은 Landscape(전체 풍경)에서 그림 */}
+      <g transform={FLOOR_TRANSFORM}>
       {/* ---- 빙붕 (옆면 · 윗면 눈밭) ---- */}
       <path d="M78 214Q78 190 104 188H1496Q1522 190 1522 214V950Q1522 990 1484 992H116Q78 990 78 950Z" fill="#4aa3d4" />
       <path d="M92 972H1508M100 982H1500" stroke="#2f86b8" strokeWidth="2" opacity=".5" />
@@ -138,6 +140,7 @@ export const MapFloor = memo(function MapFloor() {
       ].map(([x, y], i) => (
         <ellipse key={i} cx={x} cy={y} rx={i === 5 ? 200 : 120} ry={i === 5 ? 70 : 80} fill="url(#warm)" />
       ))}
+      </g>
 
       {/* 자리 표시 (얼음 의자 · 뜨개 방석 · 다진 눈 발판) */}
       {SEATS.map((s) =>
@@ -159,7 +162,7 @@ export const MapFloor = memo(function MapFloor() {
 
       {/* ---- 구역 경계: 얼음 블록 담 ---- */}
       {DIVIDER_SEGMENTS.map((r, i) => {
-        const y2 = Math.min(r.y2, bottom - 4);
+        const y2 = Math.min(r.y2, fy(bottom) - 4);
         const cx = (r.x1 + r.x2) / 2;
         const n = Math.max(1, Math.round((y2 - r.y1) / 24));
         const step = (y2 - r.y1) / n;
@@ -192,9 +195,9 @@ export const MapFloor = memo(function MapFloor() {
       })}
 
       {/* ---- 빙하 절벽 ---- */}
-      <path d={`${CLIFF_TOP}L1522 200H78Z`} fill="url(#cliff)" />
+      <path d={`${CLIFF_TOP}L1522 ${WALL_BASE}H78Z`} fill="url(#cliff)" />
       {/* 빙하 층리 */}
-      {[118, 140, 160, 182].map((y, i) => (
+      {[120, 145, 170, 195].map((y, i) => (
         <path
           key={y}
           d={`M78 ${y}q120 ${i % 2 ? 6 : -6} 240 0t240 0t240 0t240 0t240 0t240 0`}
@@ -216,13 +219,15 @@ export const MapFloor = memo(function MapFloor() {
         d={Array.from({ length: 48 }, (_, i) => {
           const x = 90 + i * 29.5;
           const len = 8 + ((i * 7) % 5) * 4;
-          return `M${x} 200l5 ${len}l5 -${len}`;
+          return `M${x} ${WALL_BASE}l5 ${len}l5 -${len}`;
         }).join("")}
         fill="#eaf8fe"
       />
-      <path d="M78 200H1522" stroke="#8fd1ec" strokeWidth="5" />
+      <path d={`M78 ${WALL_BASE}H1522`} stroke="#8fd1ec" strokeWidth="5" />
 
-      {/* 집중석 벽: 빙벽을 깎은 책 선반 + 얼음 표지판 */}
+      {/* ---- 빙벽 장식: 벽이 높아진 만큼 아래로 (밑선 200 → WALL_BASE) ---- */}
+      <g transform={`translate(0 ${WALL_BASE - 200})`}>
+      {/* 집중석 벽: 빙벽을 깎은 책 선반 (가운데는 스터디 LIVE 스크린) */}
       {[140, 600].map((x0) => (
         <g key={x0}>
           <path
@@ -259,16 +264,7 @@ export const MapFloor = memo(function MapFloor() {
           ))}
         </g>
       ))}
-      <g>
-        <rect x="370" y="100" width="170" height="60" rx="12" fill="#f4fbfe" fillOpacity=".9" stroke="#8fd1ec" strokeWidth="2" />
-        <path d="M376 104q40 -8 80 0t80 0" stroke={SNOW} strokeWidth="6" strokeLinecap="round" />
-        <text x="455" y="129" textAnchor="middle" fontSize="17" fontWeight="800" fill="#146b94">
-          🤫 쉿! 집중 중
-        </text>
-        <text x="455" y="150" textAnchor="middle" fontSize="12" fontWeight="700" fill="#1d8fc0">
-          대화는 카페석에서
-        </text>
-      </g>
+      {/* 두 선반 사이(가운데)는 스터디 LIVE 스크린 자리 — LectureScreen.tsx 가 그 위에 그림 (LECTURE_SCREEN) */}
 
       {/* 스탠딩석 벽: 얼음 목표판 */}
       <g>
@@ -330,33 +326,34 @@ export const MapFloor = memo(function MapFloor() {
         );
       })}
 
-      {/* ---- 구역 이름 (빙벽 아래 얼음 명판) ---- */}
-      {ZONES.map((z) => {
-        if (z.id === "cafe") return null; // 카페는 이글루 간판으로 표시
-        const cx = z.id === "focus" ? 455 : (z.rect.x1 + z.rect.x2) / 2;
-        const text = `${z.emoji} ${z.label}`;
+      </g>
+
+      {/* ---- 구역 이름: 집중 개인석 명판 (스터디 LIVE 스크린 바로 아래). 스탠딩석 · 카페는 명판 없음 ---- */}
+      {(() => {
+        const cx = 455;
+        const text = `${focus.emoji} ${focus.label}`;
         const tw = text.length * 14 + 30;
-        const fill = z.id === "focus" ? "#146b94" : "#1a7a63";
+        const y = WALL_BASE - 14;
         return (
-          <g key={z.id}>
-            <rect x={cx - tw / 2} y="178" width={tw} height="28" rx="14" fill={fill} />
+          <g>
+            <rect x={cx - tw / 2} y={y} width={tw} height="28" rx="14" fill="#146b94" />
             <path
-              d={`M${cx - tw / 2 + 10} 178q${tw / 4 - 5} -5 ${tw / 2 - 10} 0t${tw / 2 - 10} 0`}
+              d={`M${cx - tw / 2 + 10} ${y}q${tw / 4 - 5} -5 ${tw / 2 - 10} 0t${tw / 2 - 10} 0`}
               stroke={SNOW}
               strokeWidth="3"
               strokeLinecap="round"
               fill="none"
             />
-            <text x={cx} y="197" textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">
+            <text x={cx} y={y + 19} textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">
               {text}
             </text>
           </g>
         );
-      })}
+      })()}
 
       {/* ---- 입구: 눈 둔덕 ---- */}
-      <path d="M864 960Q868 928 938 926Q1008 928 1012 960Z" fill={SNOW} stroke="#d6eaf4" strokeWidth="2" />
-      <text x="938" y="951" textAnchor="middle" fontSize="12" fontWeight="800" fill="#146b94">
+      <path d={`M864 ${fy(960)}Q868 ${fy(928)} 938 ${fy(926)}Q1008 ${fy(928)} 1012 ${fy(960)}Z`} fill={SNOW} stroke="#d6eaf4" strokeWidth="2" />
+      <text x="938" y={fy(951)} textAnchor="middle" fontSize="12" fontWeight="800" fill="#146b94">
         입구 · WELCOME
       </text>
     </svg>

@@ -7,28 +7,48 @@
  *   x 110 ─────── 800 ──────── 1076 ─────── 1490
  */
 
+/**
+ * 세로 배치 (2026-11-28): 공부 공간(빙벽 아래 바닥)을 세로로 20% 줄이고, 빙벽은 10% 높임.
+ * 바닥 좌표는 처음 설계한 좌표(빙벽 밑선 y=200 기준)를 fy() 로 옮겨 씁니다.
+ * MapArt 의 바닥 그림도 같은 변환(FLOOR_TRANSFORM)을 써서 자리 · 소품과 정확히 겹칩니다.
+ */
+/** 빙벽 밑선 — 벽이 10% 높아져 200 → 213 */
+export const WALL_BASE = 213;
+/** 바닥 세로 배율 */
+export const FLOOR_SCALE = 0.8;
+/** 처음 설계한 바닥 y 좌표 → 지금 좌표 */
+export const fy = (y: number) => Math.round(WALL_BASE + (y - 200) * FLOOR_SCALE);
+/** SVG transform: 처음 설계 좌표로 그린 바닥 그림을 지금 좌표로 */
+export const FLOOR_TRANSFORM = `matrix(1 0 0 ${FLOOR_SCALE} 0 ${WALL_BASE - 200 * FLOOR_SCALE})`;
+/** 빙붕 아래쪽 끝 (옆면 포함) */
+export const CAMP_BOTTOM = fy(992);
+
 /** 공부 캠프(빙붕) 좌표계 — 자리 · 이동 · 충돌은 모두 이 좌표를 씁니다 */
-export const WORLD = { w: 1600, h: 1000 } as const;
+export const WORLD = { w: 1600, h: 870 } as const;
 
 /**
  * 화면에 그리는 전체 남극 풍경. 공부 캠프는 그 안의 CAMP_OFFSET 위치에 놓이고,
  * 빙붕(공부 공간)이 풍경 전체의 약 60%를 차지합니다. 나머지는 빙하 · 설산 · 바다 · 남극 동물.
  */
 export const LANDSCAPE = { w: 2000, h: 1200 } as const;
-export const CAMP_OFFSET = { x: 200, y: 120 } as const;
+/** 캠프 아래쪽 끝은 예전 자리(풍경 y 1112)에 두고, 줄어든 만큼 위쪽 설산 · 빙상 고원이 더 보이게 */
+export const CAMP_OFFSET = { x: 200, y: 1112 - CAMP_BOTTOM } as const;
 
 /** 걸어다닐 수 있는 얼음판 범위 (위쪽은 빙벽, 가장자리는 바다) */
-export const WALKABLE = { x1: 110, y1: 215, x2: 1490, y2: 935 } as const;
+export const WALKABLE = { x1: 110, y1: fy(215), x2: 1490, y2: fy(935) } as const;
 
 /** 구역 경계(칸막이) x 좌표 */
 export const DIVIDERS = [800, 1076] as const;
 /** 칸막이에 뚫린 통로 (y 범위) */
 export const DOORWAYS: [number, number][] = [
-  [420, 500],
-  [720, 800],
+  [fy(420), fy(500)],
+  [fy(720), fy(800)],
 ];
 
-export const SPAWN = { x: 938, y: 905 } as const;
+export const SPAWN = { x: 938, y: fy(905) } as const;
+
+/** 집중 개인석 벽, 두 책 선반 사이의 "스터디 LIVE" 스크린 (강의 표시 · 강의 만들기) */
+export const LECTURE_SCREEN = { x: 330, y: 96, w: 260, h: 100 } as const;
 
 export type SeatKind = "desk" | "standing" | "cafe" | "sofa";
 
@@ -77,24 +97,24 @@ export const ZONES: Zone[] = [
 
 /* ---------- 집중 개인석: 3열 × 4줄 = 12석 ---------- */
 const DESK_COLS = [225, 452, 680];
-const DESK_ROWS = [300, 470, 640, 810];
+const DESK_ROWS = [300, 470, 640, 810].map(fy);
 const desks = DESK_ROWS.flatMap((y, r) =>
   DESK_COLS.map((x, c) => ({ id: `desk-${r * 3 + c + 1}`, x, y, prop: (r + c) % 2 ? "book" : "laptop" }) as const),
 );
 
 /* ---------- 스탠딩석: 높은 테이블 3개 × 양옆 = 6석 ---------- */
 const TALL_X = 938;
-const TALL_ROWS = [340, 590, 770];
+const TALL_ROWS = [340, 590, 770].map(fy);
 
 /* ---------- 카페석: 원형 테이블 4개 × 2석 + 소파 3석 ---------- */
 const CAFE_TABLES: [number, number][] = [
-  [1190, 450],
-  [1390, 450],
-  [1190, 650],
-  [1390, 650],
+  [1190, fy(450)],
+  [1390, fy(450)],
+  [1190, fy(650)],
+  [1390, fy(650)],
 ];
 const SOFA_XS = [1200, 1290, 1380];
-const SOFA_Y = 868;
+const SOFA_Y = fy(868);
 
 export const SEATS: Seat[] = [
   ...desks.map((d): Seat => ({ id: d.id, kind: "desk", x: d.x, y: d.y, prop: d.prop })),
@@ -142,13 +162,13 @@ export const PROPS: MapProp[] = [
     y: y + 6,
     block: { x1: x - 34, y1: y - 22, x2: x + 34, y2: y + 6 },
   })),
-  { id: "snow-bench", kind: "snowBench", x: 1290, y: 912, block: { x1: 1140, y1: 880, x2: 1440, y2: 912 } },
-  { id: "counter", kind: "counter", x: 1285, y: 268, block: { x1: 1110, y1: 215, x2: 1460, y2: 268 } },
-  { id: "crystal-1", kind: "crystal", x: 136, y: 238, block: { x1: 116, y1: 222, x2: 156, y2: 240 } },
-  { id: "crystal-2", kind: "crystal", x: 136, y: 918, block: { x1: 116, y1: 902, x2: 156, y2: 920 } },
-  { id: "crystal-3", kind: "crystal", x: 1468, y: 330, block: { x1: 1448, y1: 314, x2: 1488, y2: 332 } },
-  { id: "lantern-cafe", kind: "lantern", x: 1110, y: 880, block: { x1: 1100, y1: 868, x2: 1120, y2: 882 } },
-  { id: "signpost", kind: "signpost", x: 1040, y: 922, block: { x1: 1032, y1: 910, x2: 1048, y2: 924 } },
+  { id: "snow-bench", kind: "snowBench", x: 1290, y: fy(912), block: { x1: 1140, y1: fy(880), x2: 1440, y2: fy(912) } },
+  { id: "counter", kind: "counter", x: 1285, y: fy(268), block: { x1: 1110, y1: fy(215), x2: 1460, y2: fy(268) } },
+  { id: "crystal-1", kind: "crystal", x: 136, y: fy(238), block: { x1: 116, y1: fy(224), x2: 156, y2: fy(240) } },
+  { id: "crystal-2", kind: "crystal", x: 136, y: fy(918), block: { x1: 116, y1: fy(902), x2: 156, y2: fy(920) } },
+  { id: "crystal-3", kind: "crystal", x: 1468, y: fy(330), block: { x1: 1448, y1: fy(314), x2: 1488, y2: fy(332) } },
+  { id: "lantern-cafe", kind: "lantern", x: 1110, y: fy(880), block: { x1: 1100, y1: fy(868), x2: 1120, y2: fy(882) } },
+  { id: "signpost", kind: "signpost", x: 1040, y: fy(922), block: { x1: 1032, y1: fy(910), x2: 1048, y2: fy(924) } },
 ];
 
 export const OBSTACLES: Rect[] = [...PROPS.flatMap((p) => (p.block ? [p.block] : [])), ...dividerBlocks];

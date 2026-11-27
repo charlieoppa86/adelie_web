@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { watchAccount } from "@/lib/account";
+import { convertToReplay, endBroadcast, extendBroadcast, startBroadcast, watchBroadcast, type Broadcast } from "@/lib/broadcast";
 import { LANDING_URL } from "@/lib/links";
 import { startDm, type DmHandle } from "@/lib/dm";
 import { dismiss, kick, setRole, watchBan, watchFlags, type FlaggedTarget } from "@/lib/moderation";
@@ -22,6 +23,7 @@ import { AttendancePanel } from "./AttendancePanel";
 import { Avatar, LABEL_Z, type AvatarPart, type Bubble } from "./Avatar";
 import { Composer, type ComposerHandle } from "./Composer";
 import { Landscape } from "./Landscape";
+import { CreateLectureDialog, EndLectureDialog, LecturePlayer, LectureScreen, formatEndsAt, openLectureWindow } from "./LectureScreen";
 import { MapFloor, MapProps } from "./MapArt";
 import { IncomingRequestCard, OutgoingRequestCard, SecretChatPanel } from "./SecretChat";
 import { useSecretChat } from "./useSecretChat";
@@ -38,8 +40,9 @@ const SEND_EVERY = 200; // ms (5Hz)
 /** 다른 펭귄 보간 속도 — 전송 간격이 길어진 만큼 부드럽게 따라가도록 낮춤 */
 const LERP_RATE = 6;
 const MIN_SCALE = 0.45;
-/** 큰 모니터 전체 화면에서도 풍경이 가로를 꽉 채우도록 넉넉히 */
 const MAX_SCALE = 1.8;
+/** 화면을 꽉 채우려고 1배보다 확대될 때, 확대되는 만큼의 절반만 확대 (큰 모니터 전체 화면에서 너무 크게 보이지 않게) */
+const ZOOM_IN_DAMP = 0.5;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
 const KEY_DIR: Record<string, [number, number]> = {
@@ -74,6 +77,13 @@ export function Office() {
   const [flagged, setFlagged] = useState<FlaggedTarget[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
   const [kicked, setKicked] = useState<{ message: string; until: number } | null>(null);
+  /** 스터디 LIVE 강의 (한 번에 하나) */
+  const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  /** 내가 방금 끝낸 강의 — 시청자용 "강의가 끝났어요" 알림을 띄우지 않으려고 */
+  const selfEndedRef = useRef(false);
   const dmRef = useRef<DmHandle | null>(null);
   const roomRef = useRef<RoomHandle | null>(null);
   const playersRef = useRef(players);
@@ -219,6 +229,33 @@ export function Office() {
           void room?.leave();
         }),
       );
+      // 스터디 LIVE: 시작 · 다시보기 전환 · 종료(직접 · 예약 시각) 알림, 끝나면 플레이어 닫기
+      let prev: Broadcast | null | undefined; // undefined = 아직 첫 값 전
+      unsubs.push(
+        watchBroadcast((b) => {
+          setBroadcast(b);
+          if (!b) {
+            setPlayerOpen(false);
+            setEndOpen(false);
+          }
+          if (prev !== undefined) {
+            if (b && (!prev || b.startedAt !== prev.startedAt)) {
+              if (b.hostUid !== uid)
+                showToast(
+                  b.mode === "live"
+                    ? `🔴 ${b.hostName} 님이 LIVE를 시작했어요 — 스터디 LIVE에서 "LIVE 중"을 눌러 보세요`
+                    : `🍿 ${b.hostName} 님이 영상을 올렸어요 — 스터디 LIVE에서 "뭐 보지?"를 눌러 보세요`,
+                );
+            } else if (b && prev && prev.mode === "live" && b.mode === "vod") {
+              showToast("▶ LIVE가 끝나고 다시보기로 바뀌었어요 — \"뭐 보지?\"로 볼 수 있어요");
+            } else if (!b && prev) {
+              if (selfEndedRef.current) selfEndedRef.current = false;
+              else showToast("📺 스터디 LIVE 강의가 끝났어요");
+            }
+          }
+          prev = b;
+        }, serverNow),
+      );
       // 관리자만 읽을 수 있음 (아니면 빈 목록)
       if (profile.role === "admin")
         unsubs.push(
@@ -244,6 +281,17 @@ export function Office() {
       roomRef.current = null;
     };
   }, [router, upsert, showToast, dmEvents, serverNow]);
+
+  /* ---------- 스터디 LIVE: 자동 종료 10분 전 관리자에게 알림 ---------- */
+  const endsAt = broadcast?.endsAt;
+  const amAdmin = selfId ? players[selfId]?.role === "admin" : false;
+  useEffect(() => {
+    if (!endsAt || !amAdmin) return;
+    const wait = endsAt - 10 * 60 * 1000 - serverNow();
+    if (wait <= 0) return;
+    const t = window.setTimeout(() => showToast("⏱ 스터디 LIVE가 10분 뒤 자동 종료돼요 — 스크린의 +30분으로 연장할 수 있어요"), wait);
+    return () => window.clearTimeout(t);
+  }, [endsAt, amAdmin, serverNow, showToast]);
 
   /* ---------- 키보드 ---------- */
   useEffect(() => {
@@ -280,7 +328,9 @@ export function Office() {
       const vw = vp.clientWidth;
       const vh = vp.clientHeight;
       // 화면을 꽉 채우는 배율(cover): 남는 쪽은 카메라가 내 펭귄을 따라가며 보여 줌
-      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.max(vw / LANDSCAPE.w, vh / LANDSCAPE.h)));
+      const cover = Math.max(vw / LANDSCAPE.w, vh / LANDSCAPE.h);
+      const zoomed = cover > 1 ? 1 + (cover - 1) * ZOOM_IN_DAMP : cover;
+      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, zoomed));
       Object.assign(cam.current, { vw, vh, s });
       // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
       worldRef.current?.style.setProperty("--ui", String(Math.min(1.7, Math.max(1, 0.85 / s))));
@@ -466,6 +516,41 @@ export function Office() {
   );
   const selected = selectedId ? players[selectedId] : undefined;
   const isAdmin = me?.role === "admin";
+  const watchLecture = () => {
+    if (!broadcast) return;
+    if (broadcast.kind === "youtube") setPlayerOpen(true);
+    else openLectureWindow(broadcast.url);
+  };
+  const endLecture = () => {
+    selfEndedRef.current = true;
+    endBroadcast()
+      .then(() => {
+        setEndOpen(false);
+        showToast("강의를 끝냈어요. 줌 회의 · OBS 방송도 각 프로그램에서 꺼 주세요.");
+      })
+      .catch(() => {
+        selfEndedRef.current = false;
+        setEndOpen(false);
+        showToast("강의를 끝내지 못했어요.");
+      });
+  };
+  const replayLecture = () => {
+    convertToReplay(serverNow())
+      .then(() => {
+        setEndOpen(false);
+        showToast("▶ 다시보기로 바꿨어요. OBS · 유튜브 방송도 꺼 주세요.");
+      })
+      .catch(() => {
+        setEndOpen(false);
+        showToast("다시보기로 바꾸지 못했어요.");
+      });
+  };
+  const extendLecture = () => {
+    if (!broadcast) return;
+    extendBroadcast(broadcast, serverNow())
+      .then(() => showToast("⏱ 30분 연장했어요."))
+      .catch(() => showToast("연장하지 못했어요."));
+  };
   /** 관리자 패널용: 신고 목록 + 지금 접속 중인지 */
   const flags = useMemo<ModerationFlag[]>(
     () =>
@@ -599,6 +684,15 @@ export function Office() {
               <div className="absolute" style={{ left: CAMP_OFFSET.x, top: CAMP_OFFSET.y, width: WORLD.w, height: WORLD.h }}>
                 <MapFloor />
                 <MapProps />
+                <LectureScreen
+                  broadcast={broadcast}
+                  isAdmin={isAdmin && conn === "ready"}
+                  canEnd={!!broadcast && isAdmin}
+                  onCreate={() => setCreateOpen(true)}
+                  onWatch={watchLecture}
+                  onExtend={extendLecture}
+                  onEnd={() => setEndOpen(true)}
+                />
 
                 {/* 빈 자리 */}
                 {SEATS.map((seat) => {
@@ -615,7 +709,7 @@ export function Office() {
                       className="group absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
                       style={{ left: seat.x, top: seat.y - 4, width: 40, height: 22, zIndex: 1500 }}
                     >
-                      <span className="absolute inset-0 rounded-[50%] border-2 border-dashed border-brand-400/70 bg-white/35 transition group-hover:scale-110 group-hover:border-solid group-hover:bg-aurora-green/50" />
+                      <span className="absolute inset-0 rounded-[50%] border-2 border-dashed border-[#1f3b52]/75 bg-white/35 transition group-hover:scale-110 group-hover:border-solid group-hover:bg-aurora-green/50" />
                     </button>
                   );
                 })}
@@ -741,6 +835,24 @@ export function Office() {
                   onReport={dm.report}
                 />
               </div>
+            )}
+
+            {playerOpen && broadcast?.kind === "youtube" && (
+              <LecturePlayer broadcast={broadcast} onClose={() => setPlayerOpen(false)} />
+            )}
+            {createOpen && isAdmin && me && selfId && (
+              <CreateLectureDialog
+                onClose={() => setCreateOpen(false)}
+                onSubmit={async (mode, link, durationMs) => {
+                  const endsAt = serverNow() + durationMs;
+                  await startBroadcast({ uid: selfId, name: me.name }, mode, link, endsAt);
+                  setCreateOpen(false);
+                  showToast(`${mode === "live" ? "🔴 LIVE" : "▶ 기존 영상"} 강의를 시작했어요 (${formatEndsAt(endsAt)}에 자동 종료).`);
+                }}
+              />
+            )}
+            {endOpen && isAdmin && broadcast && (
+              <EndLectureDialog broadcast={broadcast} onEnd={endLecture} onReplay={replayLecture} onClose={() => setEndOpen(false)} />
             )}
 
             {adminOpen && isAdmin && (

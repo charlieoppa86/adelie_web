@@ -4,7 +4,7 @@
  * 황제펭귄은 사용자 펭귄(아델리)과 헷갈리지 않게 작고, 노란 귀 무늬가 있는 실루엣으로 그립니다.
  */
 import { memo } from "react";
-import { CAMP_OFFSET, LANDSCAPE } from "@/shared/officeMap";
+import { CAMP_BOTTOM, CAMP_OFFSET, LANDSCAPE } from "@/shared/officeMap";
 
 const SNOW = "#fbfeff";
 const INK = "#1a2436";
@@ -97,7 +97,8 @@ export const Landscape = memo(function Landscape() {
   const { w, h } = LANDSCAPE;
   const cx1 = CAMP_OFFSET.x + 78; // 캠프 빙붕 왼쪽 끝
   const cx2 = CAMP_OFFSET.x + 1522; // 오른쪽 끝
-  const cyB = CAMP_OFFSET.y + 992; // 아래쪽 끝
+  const cyB = CAMP_OFFSET.y + CAMP_BOTTOM; // 아래쪽 끝
+  const cyT = CAMP_OFFSET.y + 66; // 빙벽 윗선(가장 높은 곳)
   return (
     <svg className="absolute inset-0" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
       <defs>
@@ -124,6 +125,11 @@ export const Landscape = memo(function Landscape() {
         <linearGradient id="ls-ice" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffffff" />
           <stop offset="1" stopColor="#d9eef8" />
+        </linearGradient>
+        <linearGradient id="ls-plateau" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#eaf6fb" />
+          <stop offset=".55" stopColor="#cfe9f5" />
+          <stop offset="1" stopColor="#a9ddf1" />
         </linearGradient>
         <linearGradient id="ls-cliff" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#a9ddf1" />
@@ -172,6 +178,32 @@ export const Landscape = memo(function Landscape() {
         fill="#46607c"
       />
       <path d="M120 260L104 280L124 276ZM360 240L340 262L362 258ZM1780 250L1760 272L1782 268ZM1540 270L1526 288L1544 284Z" fill="#eaf6fb" />
+
+      {/* ---- 산맥 아래 내륙 빙상 고원 (캠프 빙벽 뒤로 펼쳐진 남극 대륙) ---- */}
+      <path d={`M0 322Q260 306 520 318T1040 312T1560 320T2000 314V${cyT + 70}H0Z`} fill="url(#ls-plateau)" />
+      <path
+        d={`M0 336Q300 326 620 336T1260 332T2000 336M40 ${cyT - 20}Q420 ${cyT - 32} 820 ${cyT - 22}T1600 ${cyT - 26}T2000 ${cyT - 20}`}
+        stroke="#ffffff"
+        strokeOpacity=".55"
+        strokeWidth="2"
+        fill="none"
+      />
+      {/* 고원 위 누나탁(빙상 위로 솟은 바위 봉우리) */}
+      <path d={`M560 ${cyT - 4}L590 ${cyT - 30}L606 ${cyT - 18}L624 ${cyT - 34}L656 ${cyT - 4}Z`} fill="#46607c" />
+      <path d={`M590 ${cyT - 30}L582 ${cyT - 20}L594 ${cyT - 22}ZM624 ${cyT - 34}L616 ${cyT - 22}L628 ${cyT - 24}Z`} fill="#eaf6fb" />
+      <path d={`M1380 ${cyT - 2}L1404 ${cyT - 24}L1430 ${cyT - 2}Z`} fill="#46607c" />
+      <path d={`M1404 ${cyT - 24}L1396 ${cyT - 14}L1408 ${cyT - 16}Z`} fill="#eaf6fb" />
+      {/* 남극 기지 깃발 (멀리 보이는 탐험대 캠프) */}
+      <g transform={`translate(1640 ${cyT - 6})`}>
+        <path d="M-26 0L-12 -16L2 0Z" fill="#ec7a5f" />
+        <path d="M-6 0L6 -12L18 0Z" fill="#ffd66b" />
+        <path d="M24 0V-26" stroke="#44566a" strokeWidth="2" />
+        <path d="M24 -26H38L34 -21L38 -16H24Z" fill="#ec7a5f" />
+      </g>
+      {/* 고원을 걷는 황제펭귄 행렬 */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Emperor key={i} x={300 + i * 22} y={cyT - 10 + (i % 2) * 3} s={0.45} />
+      ))}
 
       {/* ---- 왼쪽: 바다로 흘러내리는 빙하 + 황제펭귄 무리 ---- */}
       <path d={`M0 300Q120 290 240 320Q${cx1 - 10} 340 ${cx1 + 10} 380V760Q200 800 120 790Q60 810 0 800Z`} fill="url(#ls-ice)" />
