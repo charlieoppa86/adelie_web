@@ -33,6 +33,16 @@ export const WORLD = { w: 1600, h: 870 } as const;
 export const LANDSCAPE = { w: 2000, h: 1200 } as const;
 /** 캠프 아래쪽 끝은 예전 자리(풍경 y 1112)에 두고, 줄어든 만큼 위쪽 설산 · 빙상 고원이 더 보이게 */
 export const CAMP_OFFSET = { x: 200, y: 1112 - CAMP_BOTTOM } as const;
+/**
+ * 화면에 한눈에 담을 강의장(공부 캠프) 범위 — 풍경 좌표.
+ * 빙붕 좌우 끝(78 · 1522), 빙벽 윗선 · 랜턴 줄(약 50), 빙붕 아래 끝(CAMP_BOTTOM)에 여백을 조금 둠
+ */
+export const CAMP_VIEW = {
+  x1: CAMP_OFFSET.x + 60,
+  y1: CAMP_OFFSET.y + 36,
+  x2: CAMP_OFFSET.x + 1540,
+  y2: CAMP_OFFSET.y + CAMP_BOTTOM + 14,
+} as const;
 
 /** 걸어다닐 수 있는 얼음판 범위 (위쪽은 빙벽, 가장자리는 바다) */
 export const WALKABLE = { x1: 110, y1: fy(215), x2: 1490, y2: fy(935) } as const;

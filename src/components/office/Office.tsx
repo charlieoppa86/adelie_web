@@ -9,7 +9,7 @@ import { LANDING_URL } from "@/lib/links";
 import { startDm, type DmHandle } from "@/lib/dm";
 import { dismiss, kick, setRole, watchBan, watchFlags, type FlaggedTarget } from "@/lib/moderation";
 import { joinRoom, type RoomHandle } from "@/lib/room";
-import { CAMP_OFFSET, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
+import { CAMP_OFFSET, CAMP_VIEW, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
 import {
   BUBBLE_MS,
@@ -39,10 +39,13 @@ const SPEED = 210; // px/s
 const SEND_EVERY = 200; // ms (5Hz)
 /** 다른 펭귄 보간 속도 — 전송 간격이 길어진 만큼 부드럽게 따라가도록 낮춤 */
 const LERP_RATE = 6;
-const MIN_SCALE = 0.45;
+/**
+ * 이보다 작게는 줄이지 않음. 모니터 절반 크기 창(1366×768 노트북 화면을 위아래로 나눈 창까지)에서도
+ * 강의장 전체가 들어오도록 낮게 둠 — 펭귄 이름표 · 말풍선은 배율 반대로 커져서 읽힘 (--ui)
+ * 이보다 더 작은 창이면 카메라가 내 펭귄을 따라감
+ */
+const MIN_SCALE = 0.25;
 const MAX_SCALE = 1.8;
-/** 화면을 꽉 채우려고 1배보다 확대될 때, 확대되는 만큼의 절반만 확대 (큰 모니터 전체 화면에서 너무 크게 보이지 않게) */
-const ZOOM_IN_DAMP = 0.5;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
 const KEY_DIR: Record<string, [number, number]> = {
@@ -96,6 +99,11 @@ export function Office() {
   const cam = useRef({ s: 1, ox: 0, oy: 0, vw: 0, vh: 0 });
   const keys = useRef(new Set<string>());
   const path = useRef<{ points: Pt[]; seatId?: string } | null>(null);
+  /** 배경 드래그로 옮긴 화면 위치 (기본 카메라 위치에서 얼마나 옮겼는지, 화면 px) */
+  const pan = useRef({ x: 0, y: 0 });
+  /** 진행 중인 배경 드래그. moved 가 false 로 끝나면 클릭(그 자리로 걸어가기)으로 처리 */
+  const drag = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null);
+  const [panned, setPanned] = useState(false);
 
   useEffect(() => {
     playersRef.current = players;
@@ -327,13 +335,12 @@ export function Office() {
     const ro = new ResizeObserver(() => {
       const vw = vp.clientWidth;
       const vh = vp.clientHeight;
-      // 화면을 꽉 채우는 배율(cover): 남는 쪽은 카메라가 내 펭귄을 따라가며 보여 줌
-      const cover = Math.max(vw / LANDSCAPE.w, vh / LANDSCAPE.h);
-      const zoomed = cover > 1 ? 1 + (cover - 1) * ZOOM_IN_DAMP : cover;
-      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, zoomed));
+      // 강의장(CAMP_VIEW) 전체가 화면에 한눈에 들어오는 배율(contain). 남는 곳엔 주변 남극 풍경이 보임
+      const fit = Math.min(vw / (CAMP_VIEW.x2 - CAMP_VIEW.x1), vh / (CAMP_VIEW.y2 - CAMP_VIEW.y1));
+      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
       Object.assign(cam.current, { vw, vh, s });
       // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
-      worldRef.current?.style.setProperty("--ui", String(Math.min(1.7, Math.max(1, 0.85 / s))));
+      worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / s))));
     });
     ro.observe(vp);
     return () => ro.disconnect();
@@ -451,18 +458,28 @@ export function Office() {
         }
       });
 
-      // 카메라: 맵이 화면보다 크면 내 펭귄을 따라감
+      // 카메라: 강의장이 화면에 다 들어가면 강의장 가운데에 고정, 아주 작은 창이라 넘치면 내 펭귄을 따라감
+      //        그다음 풍경 밖(빈 곳)이 보이지 않게 풍경 안으로 맞춤 — 강의장은 풍경 안에 있어 계속 다 보임
       const c = cam.current;
       const world = worldRef.current;
       if (world && me && c.vw) {
-        const W = LANDSCAPE.w * c.s;
-        const H = LANDSCAPE.h * c.s;
-        const mx = me.x + CAMP_OFFSET.x;
-        const my = me.y + CAMP_OFFSET.y;
-        const ox = W <= c.vw ? (c.vw - W) / 2 : Math.min(0, Math.max(c.vw - W, c.vw / 2 - mx * c.s));
-        const oy = H <= c.vh ? (c.vh - H) / 2 : Math.min(0, Math.max(c.vh - H, c.vh / 2 - my * c.s));
-        c.ox += (ox - c.ox) * Math.min(1, dt * 8);
-        c.oy += (oy - c.oy) * Math.min(1, dt * 8);
+        // 배경 드래그로 옮긴 만큼(pan)을 더한 뒤 풍경 안으로 맞춤. 풍경 끝에 닿으면 더 끌려도 pan 이 늘지 않게 되돌림
+        const axis = (view: number, a: number, b: number, mine: number, land: number, k: "x" | "y") => {
+          const base =
+            (b - a) * c.s <= view
+              ? view / 2 - ((a + b) / 2) * c.s
+              : Math.min(-a * c.s, Math.max(view - b * c.s, view / 2 - mine * c.s));
+          const L = land * c.s;
+          const o = L <= view ? (view - L) / 2 : Math.min(0, Math.max(view - L, base + pan.current[k]));
+          if (L > view) pan.current[k] = o - base;
+          return o;
+        };
+        const ox = axis(c.vw, CAMP_VIEW.x1, CAMP_VIEW.x2, me.x + CAMP_OFFSET.x, LANDSCAPE.w, "x");
+        const oy = axis(c.vh, CAMP_VIEW.y1, CAMP_VIEW.y2, me.y + CAMP_OFFSET.y, LANDSCAPE.h, "y");
+        // 끄는 동안은 손을 바로 따라오게, 그 밖에는 부드럽게
+        const follow = drag.current?.moved ? 1 : Math.min(1, dt * 8);
+        c.ox += (ox - c.ox) * follow;
+        c.oy += (oy - c.oy) * follow;
         world.style.transform = `translate3d(${c.ox.toFixed(1)}px, ${c.oy.toFixed(1)}px, 0) scale(${c.s})`;
       }
       raf = requestAnimationFrame(tick);
@@ -664,12 +681,41 @@ export function Office() {
           {/* 스터디룸 뷰 */}
           <div
             ref={viewportRef}
-            className="relative min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden bg-[#041a2e]"
+            className="relative min-h-0 min-w-0 flex-1 cursor-grab touch-none select-none overflow-hidden bg-[#041a2e] active:cursor-grabbing"
             onPointerDown={(e) => {
               if (e.button !== 0) return;
+              // 버튼 · 입력창 · 패널 위에서 누른 건 그쪽 동작 (드래그 · 걸어가기 아님)
+              if ((e.target as HTMLElement).closest("button, a, input, textarea, [role=dialog], [role=alertdialog], [role=region]")) return;
+              drag.current = { sx: e.clientX, sy: e.clientY, px: pan.current.x, py: pan.current.y, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (!d) return;
+              const dx = e.clientX - d.sx;
+              const dy = e.clientY - d.sy;
+              if (!d.moved) {
+                if (Math.hypot(dx, dy) < 5) return; // 손떨림은 클릭으로
+                d.moved = true;
+                // 실제로 끌기 시작했을 때만 포인터를 붙잡음 (화면 밖으로 나가도 계속 끌리게)
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }
+              pan.current = { x: d.px + dx, y: d.py + dy };
+            }}
+            onPointerUp={(e) => {
+              const d = drag.current;
+              drag.current = null;
+              if (!d) return;
+              if (d.moved) {
+                setPanned(Math.abs(pan.current.x) > 1 || Math.abs(pan.current.y) > 1);
+                return;
+              }
+              // 끌지 않고 뗐으면 클릭: 그 자리로 걸어가기
               const p = toWorld(e.clientX, e.clientY);
               if (p) walkTo(p);
               setSelectedId(null);
+            }}
+            onPointerCancel={() => {
+              drag.current = null;
             }}
           >
             <div ref={worldRef} className="absolute left-0 top-0 origin-top-left" style={{ width: LANDSCAPE.w, height: LANDSCAPE.h }}>
@@ -801,6 +847,20 @@ export function Office() {
               </div>
             )}
 
+            {panned && (
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  pan.current = { x: 0, y: 0 };
+                  setPanned(false);
+                }}
+                className="absolute bottom-3 right-3 z-20 rounded-full bg-ink-900/85 px-3 py-1.5 text-xs font-bold text-ink-100 shadow-lg backdrop-blur hover:bg-ink-800"
+                title="배경을 끌어 옮긴 화면을 강의장 가운데로 되돌려요"
+              >
+                ⟲ 원래 위치로
+              </button>
+            )}
             {toast && (
               <div
                 role="status"
