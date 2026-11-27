@@ -328,28 +328,7 @@ export const MapFloor = memo(function MapFloor() {
 
       </g>
 
-      {/* ---- 구역 이름: 집중 개인석 명판 (스터디 LIVE 스크린 바로 아래). 스탠딩석 · 카페는 명판 없음 ---- */}
-      {(() => {
-        const cx = 455;
-        const text = `${focus.emoji} ${focus.label}`;
-        const tw = text.length * 14 + 30;
-        const y = WALL_BASE - 14;
-        return (
-          <g>
-            <rect x={cx - tw / 2} y={y} width={tw} height="28" rx="14" fill="#146b94" />
-            <path
-              d={`M${cx - tw / 2 + 10} ${y}q${tw / 4 - 5} -5 ${tw / 2 - 10} 0t${tw / 2 - 10} 0`}
-              stroke={SNOW}
-              strokeWidth="3"
-              strokeLinecap="round"
-              fill="none"
-            />
-            <text x={cx} y={y + 19} textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">
-              {text}
-            </text>
-          </g>
-        );
-      })()}
+      {/* 구역 명판 없음: 집중 개인석 자리는 스터디 LIVE 스크린이 아래까지 차지, 스탠딩석 · 카페는 원래 명판 없음 */}
 
       {/* ---- 입구: 눈 둔덕 ---- */}
       <path d={`M864 ${fy(960)}Q868 ${fy(928)} 938 ${fy(926)}Q1008 ${fy(928)} 1012 ${fy(960)}Z`} fill={SNOW} stroke="#d6eaf4" strokeWidth="2" />
