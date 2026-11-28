@@ -46,7 +46,7 @@ export function LibraryBoard({ count, onOpen }: { count: number | null; onOpen: 
       <span className="pointer-events-none absolute inset-x-1 -top-1 h-2 rounded-full bg-[#fbfeff]" />
       {/* 책 한 줄 + 얼음 선반 */}
       <div className="pointer-events-none mx-3 mt-3 flex h-[30px] items-end justify-center gap-[3px]" aria-hidden="true">
-        {Array.from({ length: 13 }, (_, i) => (
+        {Array.from({ length: 15 }, (_, i) => (
           <span
             key={i}
             className="rounded-[2px]"

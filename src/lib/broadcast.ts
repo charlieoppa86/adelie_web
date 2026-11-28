@@ -113,7 +113,7 @@ export const linkFitsMode = (link: LectureLink, mode: LectureMode) => mode === "
  * enablejsapi: 재생이 끝났는지 알려 받아 시청 표시(AI 선글라스)를 내리기 위해
  */
 export const youtubeEmbedUrl = (videoId: string, origin?: string) =>
-  `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1${
+  `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&enablejsapi=1${
     origin ? `&origin=${encodeURIComponent(origin)}` : ""
   }`;
 

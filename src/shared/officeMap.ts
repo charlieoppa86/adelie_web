@@ -59,11 +59,14 @@ export const SPAWN = { x: 938, y: fy(905) } as const;
 
 /**
  * 집중 개인석 벽의 두 핵심 판: 왼쪽 📚 자료 보드 + 오른쪽 📺 스터디 LIVE 스크린.
- * 같은 높이 · 같은 윗선, 사이 간격 60. 둘을 합친 가운데(450)가 가운데 책상 줄(452)과 맞음.
+ * 크기가 같고(240 × 130), 공부 공간 폭(얼음판 왼쪽 끝 110 ~ 칸막이 800 = 690) 안에서
+ * 왼쪽 여백 = 사이 간격 = 오른쪽 여백 = 70 으로 똑같이 나눔. 둘을 합친 가운데(455)는 가운데 책상 줄(452)과 거의 같음.
  * 아래쪽은 예전 "집중 개인석" 명판 자리(빙벽 밑선 아래 13px)까지 내려옴
  */
-export const LIBRARY_BOARD = { x: 180, y: 96, w: 220, h: 130 } as const;
-export const LECTURE_SCREEN = { x: 460, y: 96, w: 260, h: 130 } as const;
+const BOARD_W = 240;
+const BOARD_GAP = (DIVIDERS[0] - WALKABLE.x1 - BOARD_W * 2) / 3;
+export const LIBRARY_BOARD = { x: WALKABLE.x1 + BOARD_GAP, y: 96, w: BOARD_W, h: 130 } as const;
+export const LECTURE_SCREEN = { x: WALKABLE.x1 + BOARD_GAP * 2 + BOARD_W, y: 96, w: BOARD_W, h: 130 } as const;
 
 export type SeatKind = "desk" | "standing" | "cafe" | "sofa";
 

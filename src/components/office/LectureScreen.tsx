@@ -9,7 +9,7 @@
  * 라이브: 빨간 녹화 표시 + LIVE + 진행자 닉네임. 유튜브는 플레이어 창, 줌·미트는 새 창
  * 기존 영상: ▶ 녹화 영상 + 올린 사람 닉네임, 플레이어 창 (각자 처음부터)
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DURATION_CHOICES,
   EXTEND_MS,
@@ -458,7 +458,10 @@ export function EndLectureDialog(props: { broadcast: Broadcast; onEnd: () => voi
   );
 }
 
-/** 유튜브 플레이어 창 (스터디룸 왼쪽 아래, 접기 가능) */
+/** 플레이어를 열면 소리를 켠 채 이 크기(%)로 시작 */
+const SOUND_VOLUME = 50;
+
+/** 유튜브 플레이어 창 (스터디룸 왼쪽 아래, 접기 가능) — 소리 켜짐 · 50% 로 시작 */
 export function LecturePlayer(props: {
   broadcast: Broadcast;
   onClose: () => void;
@@ -468,6 +471,20 @@ export function LecturePlayer(props: {
   const { broadcast: b, onEnded } = props;
   const [min, setMin] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  /** 소리 기본값(켜짐 · 50%)을 이미 맞췄는지 — 그 뒤엔 사용자가 바꾼 소리를 그대로 둠 */
+  const soundSet = useRef(false);
+
+  /** 플레이어에 명령 보내기 (유튜브 IFrame API, enablejsapi=1) */
+  const command = useCallback((func: string, args: unknown[] = []) => {
+    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  }, []);
+  /** "보기"를 눌러 연 플레이어라 소리를 켠 채 재생할 수 있음 — 소리 켬 + 50% */
+  const setDefaultSound = useCallback(() => {
+    if (soundSet.current) return;
+    command("unMute");
+    command("setVolume", [SOUND_VOLUME]);
+    command("playVideo");
+  }, [command]);
 
   // 유튜브 플레이어가 보내는 상태 알림 (0 = 끝남, 1 = 재생 중)
   useEffect(() => {
@@ -485,12 +502,18 @@ export function LecturePlayer(props: {
           : d?.event === "infoDelivery"
             ? (d.info as { playerState?: number } | null)?.playerState
             : undefined;
+      if (d?.event === "onReady") setDefaultSound();
       if (state === 0) onEnded(true);
-      else if (state === 1) onEnded(false);
+      else if (state === 1) {
+        onEnded(false);
+        // 재생이 시작되면 한 번 더 맞추고 끝 (준비 알림을 놓쳤을 때 대비)
+        setDefaultSound();
+        soundSet.current = true;
+      }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [onEnded]);
+  }, [onEnded, setDefaultSound]);
 
   if (!b.videoId) return null;
   return (
@@ -532,7 +555,10 @@ export function LecturePlayer(props: {
           key={b.videoId}
           src={youtubeEmbedUrl(b.videoId, typeof window === "undefined" ? undefined : window.location.origin)}
           // 상태 알림을 받겠다고 플레이어에 등록
-          onLoad={(e) => e.currentTarget.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: b.videoId, channel: "widget" }), "*")}
+          onLoad={(e) => {
+            soundSet.current = false;
+            e.currentTarget.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: b.videoId, channel: "widget" }), "*");
+          }}
           title={`${b.hostName} 님의 유튜브 ${b.mode === "live" ? "라이브" : "녹화 영상"}`}
           className="h-full w-full"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
