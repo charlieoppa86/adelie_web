@@ -3,7 +3,7 @@ import "./globals.css";
 import { MobileNotice } from "@/components/MobileNotice";
 
 export const metadata: Metadata = {
-  title: { default: "남극AI빌리지", template: "%s · 남극AI빌리지" },
+  title: { default: "남극캠퍼스.ai", template: "%s · 남극캠퍼스.ai" },
   description: "강사 아델리와 학생 아델리가 함께 AI를 공부하는 남극 위의 가상 스터디룸",
   icons: {
     icon: [{ url: "/brand/favicon.svg", type: "image/svg+xml" }],

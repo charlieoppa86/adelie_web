@@ -3,12 +3,26 @@
     ".read": false,
     ".write": false,
     "users": {
+      ".indexOn": ["deleteAt"],
       "$uid": {
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid && !data.exists()",
         ".validate": "newData.hasChildren(['name', 'role', 'createdAt'])",
         "name": {
+          ".write": "auth != null && auth.uid === $uid && data.exists() && !data.parent().child('deleteAt').exists() && (!data.parent().child('prevNameChangedAt').exists() || data.parent().child('prevNameChangedAt').val() <= now - 2592000000) && newData.parent().child('nameChangedAt').val() === now",
           ".validate": "newData.isString() && newData.val().matches(/^[가-힣a-zA-Z0-9_]{2,12}$/) && newData.parent().parent().parent().child('nicknames').child(newData.val().toLowerCase()).val() === $uid"
+        },
+        "nameChangedAt": {
+          ".write": "auth != null && auth.uid === $uid && newData.parent().child('name').val() !== data.parent().child('name').val()",
+          ".validate": "newData.val() === now && newData.parent().child('prevNameChangedAt').val() === data.val()"
+        },
+        "prevNameChangedAt": {
+          ".write": "auth != null && auth.uid === $uid && newData.parent().child('name').val() !== data.parent().child('name').val()",
+          ".validate": "newData.isNumber() && newData.val() === data.parent().child('nameChangedAt').val()"
+        },
+        "deleteAt": {
+          ".write": "auth != null && auth.uid === $uid && !newData.exists()",
+          ".validate": "newData.isNumber()"
         },
         "role": {
           ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin' && data.exists() && auth.uid !== $uid",
@@ -34,7 +48,7 @@
         ".read": "auth != null && root.child('users').child(auth.uid).exists()",
         "players": {
           "$uid": {
-            ".write": "auth != null && ((auth.uid === $uid && (!newData.exists() || (!root.child('bans').child($uid).exists() || root.child('bans').child($uid).child('until').val() <= now))) || (root.child('users').child(auth.uid).child('role').val() === 'admin' && !newData.exists()))",
+            ".write": "auth != null && ((auth.uid === $uid && (!newData.exists() || (!root.child('users').child($uid).child('deleteAt').exists() && (!root.child('bans').child($uid).exists() || root.child('bans').child($uid).child('until').val() <= now)))) || (root.child('users').child(auth.uid).child('role').val() === 'admin' && !newData.exists()))",
             ".validate": "newData.hasChildren(['name', 'role', 'conn', 'enteredAt', 'studyMs'])",
             "name": {
               ".validate": "newData.val() === root.child('users').child($uid).child('name').val()"
@@ -170,7 +184,7 @@
           "$from": {
             ".read": "auth != null && auth.uid === $from",
             ".write": "auth != null && ((auth.uid === $from && !data.exists() && newData.exists()) || ((auth.uid === $from || auth.uid === $to) && !newData.exists()) || (auth.uid === $to && data.exists() && newData.exists()))",
-            ".validate": "$from !== $to && newData.hasChildren(['at']) && root.child('users').child($to).exists()",
+            ".validate": "$from !== $to && newData.hasChildren(['at']) && root.child('users').child($to).exists() && !root.child('users').child($to).child('deleteAt').exists()",
             "at": {
               ".validate": "(!data.exists() && newData.val() === now) || newData.val() === data.val()"
             },

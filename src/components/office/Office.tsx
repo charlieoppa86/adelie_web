@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { watchAccount } from "@/lib/account";
+import { watchAccount, watchDeletion } from "@/lib/account";
 import { convertToReplay, endBroadcast, extendBroadcast, startBroadcast, watchBroadcast, type Broadcast } from "@/lib/broadcast";
 import { LANDING_URL } from "@/lib/links";
 import { startDm, type DmHandle } from "@/lib/dm";
@@ -18,6 +18,7 @@ import {
   type ModerationFlag,
   type PlayerState,
 } from "@/shared/protocol";
+import { AccountDialog } from "./AccountDialog";
 import { AdminPanel } from "./AdminPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { Avatar, LABEL_Z, type AvatarPart, type Bubble } from "./Avatar";
@@ -79,6 +80,7 @@ export function Office() {
   /** 관리자: 확인이 필요한 신고 */
   const [flagged, setFlagged] = useState<FlaggedTarget[]>([]);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [kicked, setKicked] = useState<{ message: string; until: number } | null>(null);
   /** 스터디 LIVE 강의 (한 번에 하나) */
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
@@ -228,6 +230,13 @@ export function Office() {
       );
       dmRef.current = dm;
 
+      // 탈퇴를 신청하면(이 탭이든 다른 탭이든) 스터디룸에서 나가 입장 화면(탈퇴 취소 안내)으로
+      unsubs.push(
+        watchDeletion(uid, (at) => {
+          if (!at) return;
+          void Promise.allSettled([dm?.stop(), room?.leave()]).then(() => router.replace("/"));
+        }),
+      );
       // 관리자가 퇴장시키면 바로 나감 (규칙상 기간 동안 다시 못 들어옴)
       unsubs.push(
         watchBan(uid, (until) => {
@@ -276,7 +285,7 @@ export function Office() {
     };
 
     const stopWatching = watchAccount((a) => {
-      if (a.status === "signedOut" || a.status === "needsProfile") router.replace("/");
+      if (a.status === "signedOut" || a.status === "needsProfile" || a.status === "pendingDeletion") router.replace("/");
       else if (a.status === "ready" && !room) start(a.user.uid, a.profile);
     });
 
@@ -624,7 +633,7 @@ export function Office() {
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
         <a href={LANDING_URL} onClick={exitToLanding} className="flex items-center gap-2">
           <Image src="/brand/logo-mark.svg" alt="" width={28} height={28} />
-          <span className="font-extrabold">남극AI빌리지</span>
+          <span className="font-extrabold">남극캠퍼스.ai</span>
         </a>
         <span
           className={`ml-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
@@ -657,9 +666,20 @@ export function Office() {
             </button>
           )}
           {me && (
-            <span className="hidden text-sm text-ink-200 sm:inline">
-              <strong className="text-white">{me.name}</strong> · {ROLE_LABEL[me.role]} 아델리
-            </span>
+            <button
+              type="button"
+              onClick={() => setAccountOpen(true)}
+              aria-haspopup="dialog"
+              title="내 정보 · 닉네임 바꾸기"
+              className="rounded-full px-2 py-1 text-sm text-ink-200 hover:bg-white/5"
+            >
+              <span aria-hidden="true">👤</span>
+              <span className="hidden sm:inline">
+                {" "}
+                <strong className="text-white">{me.name}</strong> · {ROLE_LABEL[me.role]} 아델리
+              </span>
+              <span className="sr-only sm:hidden">내 정보</span>
+            </button>
           )}
           <button
             type="button"
@@ -675,6 +695,16 @@ export function Office() {
           </a>
         </div>
       </header>
+
+      {accountOpen && selfId && (
+        <AccountDialog
+          uid={selfId}
+          now={serverNow}
+          onRenamed={(name) => showToast(`✏️ 닉네임을 ${name}(으)로 바꿨어요`)}
+          onDeletionRequested={() => setAccountOpen(false)}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
@@ -938,7 +968,7 @@ export function Office() {
 
             {conn === "connecting" && (
               <div className="absolute inset-0 z-30 grid place-items-center bg-night/70 text-sm text-ink-200">
-                남극AI빌리지에 들어가는 중…
+                남극캠퍼스.ai에 들어가는 중…
               </div>
             )}
           </div>

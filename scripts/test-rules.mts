@@ -209,6 +209,64 @@ await check("종료 시각이 24시간 넘으면 거부", () =>
   assertFails(set(ref(db(dave), BC), lecture("dave", "관리펭귄", { endsAt: Date.now() + 25 * 3_600_000 }))),
 );
 
+console.log("닉네임 변경 (30일에 2번) · 탈퇴 유예");
+const frank = env.authenticatedContext("frank");
+const gina = env.authenticatedContext("gina");
+const DAY = 86_400_000;
+const adminSet = (path: string, v: unknown) => env.withSecurityRulesDisabled((ctx) => set(ref(ctx.database(), path), v));
+const readAs = async (path: string) => {
+  let v: unknown;
+  await env.withSecurityRulesDisabled(async (ctx) => (v = (await get(ref(ctx.database(), path))).val()));
+  return v;
+};
+/** 앱과 같은 방식: 새 닉네임 예약(내 것이 아니면) + 이름 + 변경 시각 (직전 변경 시각은 prev 로 밀어냄) */
+async function rename(ctx: RulesTestContext, uid: string, name: string, opts: { skipPrev?: boolean; skipStamp?: boolean } = {}) {
+  const key = name.toLowerCase();
+  const last = (await readAs(`users/${uid}/nameChangedAt`)) as number | null;
+  const owned = (await readAs(`nicknames/${key}`)) === uid;
+  return update(ref(db(ctx)), {
+    ...(owned ? {} : { [`nicknames/${key}`]: uid }),
+    [`users/${uid}/name`]: name,
+    ...(opts.skipStamp ? {} : { [`users/${uid}/nameChangedAt`]: serverTimestamp() }),
+    ...(last && !opts.skipPrev ? { [`users/${uid}/prevNameChangedAt`]: last } : {}),
+  });
+}
+await check("frank 가입", () => assertSucceeds(signup(frank, "frank", "프랭크")));
+await check("변경 시각 없이 이름만 바꾸면 거부", () => assertFails(rename(frank, "frank", "프랭키", { skipStamp: true })));
+await check("남이 쓰는 닉네임으로 변경 거부", () => assertFails(rename(frank, "frank", "밥펭귄")));
+await check("남의 닉네임 바꾸기 거부", () => assertFails(rename(bob, "frank", "해커펭")));
+await check("1번째 변경", () => assertSucceeds(rename(frank, "frank", "프랭키")));
+await check("옛 닉네임은 계속 묶여 있어 다른 펭귄이 못 씀", () => assertFails(signup(gina, "gina", "프랭크")));
+await check("옛 닉네임 예약을 지울 수 없음", () => assertFails(remove(ref(db(frank), "nicknames/프랭크"))));
+await check("2번째 변경 (직전 변경 시각을 prev 로)", () => assertSucceeds(rename(frank, "frank", "프랭키2")));
+await check("30일 안에 3번째 변경은 거부", () => assertFails(rename(frank, "frank", "프랭키3")));
+await check("변경 시각만 따로 고치기 거부", () => assertFails(set(ref(db(frank), "users/frank/nameChangedAt"), serverTimestamp())));
+await check("prev 만 지우기 거부", () => assertFails(remove(ref(db(frank), "users/frank/prevNameChangedAt"))));
+await adminSet("users/frank/prevNameChangedAt", Date.now() - 31 * DAY);
+await check("30일 지나면 다시 변경 가능 — 단 prev 를 안 밀면 거부", () => assertFails(rename(frank, "frank", "프랭키3", { skipPrev: true })));
+await check("30일 지나면 다시 변경 가능 (내 옛 닉네임으로 돌아가기)", () => assertSucceeds(rename(frank, "frank", "프랭크")));
+await check("스터디룸 이름표는 새 이름으로만", async () => {
+  await assertFails(set(ref(db(frank), "rooms/main/players/frank"), meta("프랭키2")));
+  await assertSucceeds(set(ref(db(frank), "rooms/main/players/frank"), meta("프랭크")));
+  await assertSucceeds(remove(ref(db(frank), "rooms/main/players/frank")));
+});
+await check("탈퇴 예정 시각을 스스로 쓸 수 없음 (서버만)", () =>
+  assertFails(set(ref(db(frank), "users/frank/deleteAt"), Date.now() + 7 * DAY)),
+);
+await adminSet("users/frank/deleteAt", Date.now() + 7 * DAY);
+await adminSet("users/frank/prevNameChangedAt", Date.now() - 31 * DAY);
+await check("탈퇴 유예 중엔 스터디룸 입장 거부", () => assertFails(set(ref(db(frank), "rooms/main/players/frank"), meta("프랭크"))));
+await check("탈퇴 유예 중엔 닉네임 변경 거부", () => assertFails(rename(frank, "frank", "프랭키4")));
+await check("탈퇴 유예 중인 펭귄에게 비밀 대화 신청 거부", () =>
+  assertFails(set(ref(db(bob), "dm/requests/frank/bob"), { at: serverTimestamp() })),
+);
+await check("남이 탈퇴 취소 거부", () => assertFails(remove(ref(db(bob), "users/frank/deleteAt"))));
+await check("본인은 탈퇴 취소(복구) 가능", () => assertSucceeds(remove(ref(db(frank), "users/frank/deleteAt"))));
+await check("복구하면 다시 입장 가능", async () => {
+  await assertSucceeds(set(ref(db(frank), "rooms/main/players/frank"), meta("프랭크")));
+  await assertSucceeds(remove(ref(db(frank), "rooms/main/players/frank")));
+});
+
 await env.cleanup();
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 process.exit(fail ? 1 : 0);

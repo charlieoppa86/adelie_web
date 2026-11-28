@@ -6,11 +6,14 @@
  *   2) moderation/held/{대상} 에 보관 — 관리자도 못 봄
  *   3) 서로 다른 신고자가 2명 이상이면 moderation/flagged/{대상} 으로 올려 관리자에게 보임
  * 대화 정리: 비밀 대화가 끝나면(dm/sessions 삭제) 메시지를 지움. 처리 중인 신고가 있으면 신고 처리 쪽에서 지움.
+ * 회원 탈퇴(7일 유예): account.js
  */
 import { initializeApp } from "firebase-admin/app";
 import { onValueCreated, onValueDeleted } from "firebase-functions/v2/database";
 
 initializeApp();
+
+export { purgeDeletedAccounts, requestAccountDeletion } from "./account.js";
 
 const REPORT_THRESHOLD = 2;
 const SNAPSHOT_MAX = 200;

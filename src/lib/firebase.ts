@@ -8,6 +8,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { connectDatabaseEmulator, getDatabase, type Database } from "firebase/database";
+import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
 
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
@@ -25,6 +26,7 @@ export const USE_EMULATORS = process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1";
 
 let auth: Auth | undefined;
 let db: Database | undefined;
+let fns: Functions | undefined;
 
 /** HMR·중복 import 시에도 앱을 한 번만 만듭니다. */
 export function firebaseApp(): FirebaseApp {
@@ -51,4 +53,13 @@ export function rtdb(): Database {
     }
   }
   return db;
+}
+
+/** Cloud Functions (호출형) — 회원 탈퇴 신청. 리전은 functions/account.js 와 같아야 함 */
+export function cloudFunctions(): Functions {
+  if (!fns) {
+    fns = getFunctions(firebaseApp(), "asia-southeast1");
+    if (USE_EMULATORS) connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+  }
+  return fns;
 }

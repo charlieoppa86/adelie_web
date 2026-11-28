@@ -101,8 +101,9 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   /** 내가 자동으로 지우는 노드들 (연결 끊김·다른 탭 이어받기·퇴장 때 함께 처리) */
   const ownRefs = [playerRef, posRef, emoteRef, bubbleRef];
   let lastSaid = 0;
-  /** 역할은 관리자가 바꿀 수 있어 따로 들고 있음 */
+  /** 역할은 관리자가, 닉네임은 본인이 바꿀 수 있어 따로 들고 있음 */
   let role = profile.role;
+  let name = profile.name;
 
   let offset = 0;
   const now = () => Date.now() + offset;
@@ -165,7 +166,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     await set(attRef, { enteredAt, studyMs });
     myPos = { ...myPos, m: false };
     await set(posRef, myPos);
-    await set(playerRef, { name: profile.name, role, conn, enteredAt, studyMs } satisfies Meta);
+    await set(playerRef, { name, role, conn, enteredAt, studyMs } satisfies Meta);
     if (stopped) return;
     entered = true;
     on.ready(uid);
@@ -178,6 +179,16 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
       if (!next || next === role) return;
       role = next;
       if (entered && !stopped) set(r(`players/${uid}/role`), role).catch(() => {});
+    }),
+  );
+
+  /* 닉네임을 바꾸면(이 탭이든 다른 탭이든) 내 이름표도 바꿈 (규칙: 펭귄 이름 = 프로필 이름) */
+  unsubs.push(
+    onValue(ref(db, `users/${uid}/name`), (s) => {
+      const next = s.val() as string | null;
+      if (!next || next === name) return;
+      name = next;
+      if (entered && !stopped) set(r(`players/${uid}/name`), name).catch(() => {});
     }),
   );
 

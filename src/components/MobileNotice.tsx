@@ -63,7 +63,7 @@ export function MobileNotice() {
           불편하시죠?
         </p>
         <p id="mobile-notice-desc" className="mt-2 text-sm text-ink-300">
-          남극AI빌리지는 넓은 화면에 맞춰 만들었어요.
+          남극캠퍼스.ai는 넓은 화면에 맞춰 만들었어요.
           <br />
           노트북이나 PC 환경에서 다시 진행해주세요.
         </p>

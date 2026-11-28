@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  cancelDeletion,
   createProfile,
   signInWithGoogle,
   signOutAccount,
@@ -11,6 +12,7 @@ import {
   type CreateProfileError,
 } from "@/lib/account";
 import { NICKNAME_RE } from "@/shared/protocol";
+import { formatDate } from "@/components/office/AccountDialog";
 
 const CARD = "w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur";
 const PRIMARY =
@@ -56,7 +58,7 @@ export function EntryForm() {
   if (account.status === "loading" || entering) {
     return (
       <div className={`${CARD} text-center text-sm text-ink-300`} role="status">
-        {entering ? "남극AI빌리지로 들어가는 중…" : "펭귄 확인 중…"}
+        {entering ? "남극캠퍼스.ai로 들어가는 중…" : "펭귄 확인 중…"}
       </div>
     );
   }
@@ -87,6 +89,51 @@ export function EntryForm() {
           Google로 입장하기
         </button>
         {error && <p className="mt-3 text-center text-xs text-coral-300">{error}</p>}
+      </div>
+    );
+  }
+
+  if (account.status === "pendingDeletion") {
+    return (
+      <div className={CARD}>
+        <p className="text-center text-3xl" aria-hidden="true">
+          🧳
+        </p>
+        <p className="mt-2 text-center text-lg font-extrabold">
+          아델리 <span className="text-brand-300">{account.profile.name}</span> 님은 탈퇴 예정이에요
+        </p>
+        <p className="mt-2 text-center text-sm text-ink-300">
+          <strong className="text-white">{formatDate(account.deleteAt)}</strong>에 계정과 기록이 지워져요.
+          <br />그 전에 취소하면 그대로 돌아올 수 있어요.
+        </p>
+        <button
+          type="button"
+          disabled={busy}
+          className={PRIMARY}
+          onClick={() =>
+            run(async () => {
+              try {
+                await cancelDeletion(account.user.uid);
+                setEntering(true);
+                router.replace("/office");
+              } catch (e) {
+                console.error("[account] 탈퇴 취소 실패", e);
+                setError("취소하지 못했어요. 잠시 후 다시 시도해 주세요.");
+              }
+            })
+          }
+        >
+          탈퇴 취소하고 돌아가기
+        </button>
+        {error && <p className="mt-3 text-center text-xs text-coral-300">{error}</p>}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(signOutAccount)}
+          className="mt-3 w-full text-center text-xs text-ink-400 underline-offset-4 hover:text-ink-200 hover:underline"
+        >
+          로그아웃
+        </button>
       </div>
     );
   }
@@ -168,7 +215,7 @@ function NicknameForm(props: {
         className="mt-2 w-full rounded-xl border border-white/15 bg-ink-900/60 px-4 py-3 text-white outline-none placeholder:text-ink-500 focus:border-brand-400 aria-[invalid=true]:border-coral-500"
       />
       <p id="nick-help" className={`mt-1.5 text-xs ${message ? "text-coral-300" : "text-ink-400"}`}>
-        {message ?? "한글·영문·숫자·_ 2~12자 (띄어쓰기 없이 — @태그에 쓰여요). 정하면 바꿀 수 없어요."}
+        {message ?? "한글·영문·숫자·_ 2~12자 (띄어쓰기 없이 — @태그에 쓰여요). 닉네임은 30일에 2번까지 바꿀 수 있어요."}
       </p>
       <p className="mt-3 text-xs text-ink-400">처음엔 🎒 학생 아델리로 시작하고, 강사 역할은 관리자가 부여해요.</p>
       <button type="submit" disabled={props.busy} className={PRIMARY}>
