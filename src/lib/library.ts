@@ -19,7 +19,8 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { deleteObject, getDownloadURL, listAll, ref as storageRef, uploadBytes } from "firebase/storage";
-import { fileStorage, firestore } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { cloudFunctions, fileStorage, firestore } from "@/lib/firebase";
 import type { Role } from "@/shared/protocol";
 
 export type Visibility = "private" | "teachers" | "all";
@@ -178,13 +179,32 @@ export async function uploadLibraryImage(id: string, file: File): Promise<string
   return getDownloadURL(r);
 }
 
-/** 내 역할 사본이 Firestore에 반영됐는지 (강사 · 관리자인데 없으면 자료를 못 만듦) */
-export async function roleSynced(me: Me): Promise<boolean> {
-  if (!isStaff(me.role)) return true;
+export type RoleSync = "ok" | "missing" | "mismatch" | "error";
+
+async function readRoleCopy(me: Me): Promise<RoleSync> {
   try {
     const s = await getDoc(doc(firestore(), "roles", me.uid));
-    return s.exists() && s.data().role === me.role;
-  } catch {
-    return false;
+    if (!s.exists()) return "missing";
+    return s.data().role === me.role ? "ok" : "mismatch";
+  } catch (e) {
+    console.error("[library] 역할 사본 읽기 실패", e);
+    return "error";
   }
+}
+
+/**
+ * 내 역할 사본(Firestore roles/{uid})이 RTDB 역할과 맞는지 확인하고, 틀리면 서버 함수로 한 번 다시 맞춤.
+ * (syncRole 배포 전에 지정된 강사 · 관리자, 콘솔에서 손으로 만든 사본이 틀린 경우)
+ */
+export async function ensureRoleSynced(me: Me): Promise<RoleSync> {
+  if (!isStaff(me.role)) return "ok";
+  const first = await readRoleCopy(me);
+  if (first === "ok") return first;
+  try {
+    await httpsCallable(cloudFunctions(), "syncMyRole")();
+  } catch (e) {
+    console.error("[library] 역할 다시 맞추기 실패", e);
+    return first;
+  }
+  return readRoleCopy(me);
 }

@@ -15,7 +15,8 @@ import {
   createLibraryDoc,
   deleteLibraryDoc,
   isStaff,
-  roleSynced,
+  ensureRoleSynced,
+  type RoleSync,
   saveLibraryBody,
   updateLibraryMeta,
   uploadLibraryImage,
@@ -40,7 +41,8 @@ export function Library() {
   const [docs, setDocs] = useState<LibraryDoc[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [synced, setSynced] = useState(true);
+  const [roleSync, setRoleSync] = useState<RoleSync>("ok");
+  const synced = roleSync === "ok";
 
   useEffect(
     () =>
@@ -53,7 +55,7 @@ export function Library() {
 
   useEffect(() => {
     if (!me) return;
-    roleSynced(me).then(setSynced);
+    ensureRoleSynced(me).then(setRoleSync);
     return watchLibrary(me, setDocs, (e) => {
       console.error("[library]", e);
       setToast("자료 목록을 불러오지 못했어요");
@@ -181,7 +183,13 @@ export function Library() {
           </div>
           {staff && !synced && (
             <p className="m-3 rounded-lg bg-coral-500/15 p-3 text-xs leading-relaxed text-coral-200">
-              {ROLE_LABEL[me.role]} 역할이 자료실에 아직 반영되지 않았어요. 함수(syncRole)가 배포된 뒤 역할을 다시 지정하면 자료를 만들 수 있어요.
+              {ROLE_LABEL[me.role]} 역할이 자료실에 반영되지 않아 자료를 만들 수 없어요.{" "}
+              {roleSync === "error"
+                ? "역할 정보를 읽지 못했어요. 새로고침해 보세요."
+                : roleSync === "missing"
+                  ? "역할 사본이 없고, 다시 맞추기도 실패했어요."
+                  : "역할 사본이 실제 역할과 달라요."}
+              <span className="mt-1 block text-coral-300/70">관리자에게 알려 주세요 (사본 상태: {roleSync})</span>
             </p>
           )}
         </nav>

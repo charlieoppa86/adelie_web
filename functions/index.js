@@ -15,7 +15,7 @@ import { onValueCreated, onValueDeleted, onValueWritten } from "firebase-functio
 
 initializeApp();
 
-export { purgeDeletedAccounts, requestAccountDeletion } from "./account.js";
+export { purgeDeletedAccounts, requestAccountDeletion, syncMyRole } from "./account.js";
 
 const REPORT_THRESHOLD = 2;
 const SNAPSHOT_MAX = 200;

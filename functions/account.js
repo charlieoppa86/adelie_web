@@ -12,6 +12,7 @@
  */
 import { getAuth } from "firebase-admin/auth";
 import { getDatabaseWithUrl } from "firebase-admin/database";
+import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
@@ -103,3 +104,18 @@ export async function purgeDue(root, auth, now) {
   }
   return done;
 }
+
+/**
+ * 내 역할 사본 다시 맞추기 (📚 자료실이 사본이 없거나 틀렸을 때 부름)
+ * syncRole 배포 전에 지정된 강사 · 관리자, 콘솔에서 손으로 만든 사본이 틀린 경우를 스스로 고침.
+ * 언제나 RTDB users/{uid}/role(진짜 역할)을 그대로 복사할 뿐이라 권한이 올라가지 않음.
+ */
+export const syncMyRole = onCall({ region: REGION }, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "로그인이 필요해요.");
+  const role = (await db().child(`users/${uid}/role`).get()).val();
+  const doc = getFirestore().doc(`roles/${uid}`);
+  if (role === "teacher" || role === "admin") await doc.set({ role, at: Date.now() });
+  else await doc.delete();
+  return { role: role ?? "student" };
+});
