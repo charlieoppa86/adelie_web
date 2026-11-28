@@ -292,10 +292,27 @@ export const MapFloor = memo(function MapFloor() {
 
       {/* 구역 명판 없음: 집중 개인석 자리는 스터디 LIVE 스크린이 아래까지 차지, 스탠딩석 · 카페는 원래 명판 없음 */}
 
-      {/* ---- 입구: 눈 둔덕 ---- */}
-      <path d={`M864 ${fy(960)}Q868 ${fy(928)} 938 ${fy(926)}Q1008 ${fy(928)} 1012 ${fy(960)}Z`} fill={SNOW} stroke="#d6eaf4" strokeWidth="2" />
-      <text x="938" y={fy(951)} textAnchor="middle" fontSize="12" fontWeight="800" fill="#146b94">
-        입구 · WELCOME
+      {/* ---- 입구: 카페 이글루를 닮은 눈벽돌 이글루. 새로 들어온 펭귄은 이 문 앞(SPAWN)에 나타남 ---- */}
+      <g>
+        <ellipse cx="938" cy="804" rx="92" ry="8" fill="#9fdcf5" opacity=".3" />
+        {/* 돔 */}
+        <path d="M863 800Q863 754 938 752Q1013 754 1013 800Z" fill="#f4fbfe" stroke="#a9ddf1" strokeWidth="3" />
+        {/* 눈벽돌 줄눈 */}
+        <path
+          d="M865 788H1011M870 776H1006M882 764H994M890 800V788M986 800V788M880 788V776M996 788V776M904 776V764M972 776V764M920 764V755M956 764V755"
+          stroke="#c9e6f3"
+          strokeWidth="2"
+          fill="none"
+        />
+        {/* 눈 처마 */}
+        <path d="M880 764Q904 751 938 750Q972 751 996 764" stroke={SNOW} strokeWidth="6" strokeLinecap="round" fill="none" />
+        {/* 문: 따뜻한 불빛 */}
+        <path d="M914 800V784Q914 770 938 770Q962 770 962 784V800Z" fill="#163a57" />
+        <path d="M921 800V786Q921 776 938 776Q955 776 955 786V800Z" fill="#ffcf7a" opacity=".55" />
+      </g>
+      {/* 입구 문패: 얼음판 앞면에 새김 (펭귄 이름표와 겹치지 않게 바닥 아래) */}
+      <text x="938" y={fy(984)} textAnchor="middle" fontSize="11" fontWeight="800" fill="#eaf8fe" letterSpacing="1">
+        🐧 입구 · WELCOME
       </text>
     </svg>
   );
@@ -311,7 +328,6 @@ const SIZE: Record<MapProp["kind"], [number, number]> = {
   snowBench: [320, 56],
   counter: [368, 92],
   crystal: [46, 72],
-  signpost: [150, 140],
   lantern: [40, 120],
 };
 
@@ -478,36 +494,6 @@ function PropSvg({ kind, variant }: { kind: MapProp["kind"]; variant: number }) 
           <path d="M8 14H32L30 36H10Z" fill="#fff6d1" stroke="#c98b52" strokeWidth="2.5" />
           <path d="M6 14L20 2L34 14Z" fill="#8a5a3b" />
           <circle cx="20" cy="25" r="5" fill="#ffb347" />
-        </svg>
-      );
-    case "signpost":
-      // 남극 이정표
-      return (
-        <svg {...common}>
-          <ellipse cx="75" cy="136" rx="24" ry="5" fill={SNOW} stroke="#d6eaf4" />
-          <rect x="71" y="8" width="8" height="130" rx="3" fill="#8a5a3b" />
-          <path d="M71 10h8" stroke={SNOW} strokeWidth="5" strokeLinecap="round" />
-          {(
-            [
-              [18, "left", "✏️ 집중석", "#146b94"],
-              [46, "right", "☕ 카페석", "#c25a40"],
-              [74, "left", "🐧 남극점 1,280km", "#44566a"],
-            ] as const
-          ).map(([y, side, label, color]) => {
-            const bw = [...label].length * 9 + 14;
-            const x = side === "right" ? 79 : 71 - bw;
-            const tip = side === "right" ? `M${x + bw} ${y}l10 10l-10 10` : `M${x} ${y}l-10 10l10 10`;
-            return (
-              <g key={label}>
-                <rect x={x} y={y} width={bw} height="20" fill={color} />
-                <path d={`${tip}Z`} fill={color} />
-                <path d={`M${x + 2} ${y + 1}h${bw - 4}`} stroke={SNOW} strokeWidth="3" strokeLinecap="round" />
-                <text x={x + bw / 2} y={y + 15} textAnchor="middle" fontSize="11" fontWeight="800" fill="#fff">
-                  {label}
-                </text>
-              </g>
-            );
-          })}
         </svg>
       );
   }

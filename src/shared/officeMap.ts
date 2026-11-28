@@ -67,7 +67,8 @@ export const DOORWAYS: [number, number][] = [
   [fy(720), fy(800)],
 ];
 
-export const SPAWN = { x: 938, y: fy(905) } as const;
+/** 입구 이글루 문 앞 (얼음판 맨 아래 WALKABLE.y2 바로 위) */
+export const SPAWN = { x: 938, y: fy(932) } as const;
 
 /**
  * 집중 개인석 벽의 두 핵심 판: 왼쪽 📚 자료 보드 + 오른쪽 📺 스터디 LIVE 스크린.
@@ -98,7 +99,7 @@ export interface Rect {
   y2: number;
 }
 
-export type PropKind = "desk" | "tallTable" | "cafeTable" | "snowBench" | "counter" | "crystal" | "signpost" | "lantern";
+export type PropKind = "desk" | "tallTable" | "cafeTable" | "snowBench" | "counter" | "crystal" | "lantern";
 
 export interface MapProp {
   id: string;
@@ -198,7 +199,6 @@ export const PROPS: MapProp[] = [
   { id: "crystal-2", kind: "crystal", x: 136, y: fy(918), block: { x1: 116, y1: fy(902), x2: 156, y2: fy(920) } },
   { id: "crystal-3", kind: "crystal", x: 1468, y: fy(330), block: { x1: 1448, y1: fy(314), x2: 1488, y2: fy(332) } },
   { id: "lantern-cafe", kind: "lantern", x: 1110, y: fy(880), block: { x1: 1100, y1: fy(868), x2: 1120, y2: fy(882) } },
-  { id: "signpost", kind: "signpost", x: 1040, y: fy(922), block: { x1: 1032, y1: fy(910), x2: 1048, y2: fy(924) } },
 ];
 
 export const OBSTACLES: Rect[] = [...PROPS.flatMap((p) => (p.block ? [p.block] : [])), ...dividerBlocks];

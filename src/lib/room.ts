@@ -117,7 +117,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   let seatRef: DatabaseReference | null = null;
   /** 내 상태 (서버에서 돌아온 값 기준) */
   let mine: Meta | null = null;
-  let myPos: Pos = { x: SPAWN.x + Math.round((Math.random() - 0.5) * 120), y: SPAWN.y, d: 1, m: false };
+  let myPos: Pos = { x: SPAWN.x + Math.round((Math.random() - 0.5) * 40), y: SPAWN.y, d: 1, m: false };
 
   const metas = new Map<string, Meta>();
   const poses = new Map<string, Pos>();
