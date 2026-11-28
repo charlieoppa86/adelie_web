@@ -12,7 +12,8 @@ rules_version = '2';
 //   private   🔒 나만 보기 — 작성자만 (관리자도 못 봄)
 //   teachers  👩‍🏫 선생과 공유 — 강사 · 관리자가 읽기
 //   all       🌏 모두에게 공유 — 학생까지 읽기
-// 만들기: 강사 · 관리자. 수정 · 삭제: 작성자(강사 · 관리자인 동안) + 관리자(공유된 자료만)
+// 강사와 관리자는 자료실에서 똑같음: 만들기 · 공유된 자료(선생과 공유 · 모두에게 공유) 수정 · 삭제
+// 나만 보기는 작성자만. 남의 자료를 나만 보기로 돌릴 수 없음
 service cloud.firestore {
   match /databases/{db}/documents {
 
@@ -22,7 +23,6 @@ service cloud.firestore {
       return signedIn() && exists(roleDoc()) ? get(roleDoc()).data.role : 'student';
     }
     function isStaff() { return role() in ['teacher', 'admin']; }
-    function isAdmin() { return role() == 'admin'; }
 
     function canRead(d) {
       return signedIn() && (
@@ -33,7 +33,7 @@ service cloud.firestore {
     }
     // 수정 · 삭제할 수 있는 사람 (d = 지금 저장된 자료)
     function canEdit(d) {
-      return isStaff() && (d.ownerId == request.auth.uid || (isAdmin() && d.visibility != 'private'));
+      return isStaff() && (d.ownerId == request.auth.uid || d.visibility != 'private');
     }
 
     function validMeta(d) {
@@ -63,7 +63,7 @@ service cloud.firestore {
         && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.ownerName == resource.data.ownerName
         && request.resource.data.createdAt == resource.data.createdAt
-        // 관리자가 남의 자료를 '나만 보기'로 돌리면 작성자 말고는 아무도 못 보게 되므로 금지
+        // 남의 자료를 '나만 보기'로 돌리면 작성자 말고는 아무도 못 보게 되므로 금지
         && (resource.data.ownerId == request.auth.uid || request.resource.data.visibility != 'private');
       allow delete: if canEdit(resource.data);
 

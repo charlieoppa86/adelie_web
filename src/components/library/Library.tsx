@@ -2,7 +2,8 @@
 
 /**
  * 📚 자료실 — 왼쪽 자료 목록 + 오른쪽 문서 (노션처럼 열면 바로 고칠 수 있음)
- * 강사 · 관리자: 만들기 · 고치기 · 지우기 · 공유 범위(🔒 나만 보기 / 👩‍🏫 선생과 공유 / 🌏 모두에게 공유)
+ * 강사 · 관리자(똑같음): 만들기 · 공유된 자료 고치기 · 지우기 · 공유 범위(🔒 나만 보기 / 👩‍🏫 선생과 공유 / 🌏 모두에게 공유)
+ * 🔒 나만 보기는 작성자만 보고 고침
  * 학생: 모두에게 공유된 자료 읽기만
  */
 import Image from "next/image";
@@ -467,7 +468,7 @@ function VisibilityPicker({ value, isOwner, onChange }: { value: Visibility; isO
       {open && (
         <ul role="listbox" className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-white/10 bg-ink-800 p-1 shadow-2xl">
           {(["private", "teachers", "all"] as const).map((v) => {
-            // 관리자가 남의 자료를 '나만 보기'로 돌릴 수는 없음 (규칙과 같음)
+            // 남의 자료를 '나만 보기'로 돌릴 수는 없음 (규칙과 같음)
             const disabled = v === "private" && !isOwner;
             return (
               <li key={v}>

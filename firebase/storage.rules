@@ -16,7 +16,7 @@ service firebase.storage {
       let path = /databases/(default)/documents/library/$(docId);
       return isStaff() && firestore.exists(path)
         && (firestore.get(path).data.ownerId == request.auth.uid
-          || (role() == 'admin' && firestore.get(path).data.visibility != 'private'));
+          || firestore.get(path).data.visibility != 'private');
     }
 
     match /library/{docId}/{file} {

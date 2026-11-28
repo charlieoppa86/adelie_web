@@ -78,6 +78,8 @@ await check("모르는 필드가 있으면 거부", () => assertFails(create(t1,
 await check("잘못된 공유 범위 거부", () => assertFails(create(t1, "d4", meta("teacher1", "강사1", "public"))));
 await check("관리자도 자료 만들기 (모두에게 공유로 바로)", () => assertSucceeds(create(admin, "a1", meta("admin", "관리자", "all"))));
 await check("강사2 자료 (선생과 공유)", () => assertSucceeds(create(t2, "t2doc", meta("teacher2", "강사2", "teachers"))));
+await check("강사2 자료 하나 더 (선생과 공유)", () => assertSucceeds(create(t2, "t2doc2", meta("teacher2", "강사2", "teachers"))));
+await check("강사1 초안 하나 더 (나만 보기, 끝까지 유지)", () => assertSucceeds(create(t1, "draft", meta("teacher1", "강사1"))));
 await check("본문만 따로 남의 자료에 만들기 거부", () =>
   assertFails(setDoc(doc(fs(t2), "library/d1/body/extra"), { doc: "{}" })),
 );
@@ -89,6 +91,8 @@ await check("다른 강사는 못 읽음", () => assertFails(getDoc(doc(fs(t2), 
 await check("관리자도 못 읽음", () => assertFails(getDoc(doc(fs(admin), "library/d1"))));
 await check("학생은 못 읽음", () => assertFails(getDoc(doc(fs(stu), "library/d1/body/main"))));
 await check("관리자도 남의 초안은 못 고침", () => assertFails(saveBody(admin, "d1", "admin", "관리자")));
+await check("다른 강사도 남의 초안은 못 고침", () => assertFails(saveBody(t2, "d1", "teacher2", "강사2")));
+await check("다른 강사도 남의 초안은 못 지움", () => assertFails(deleteDoc(doc(fs(t2), "library/draft"))));
 await check("작성자가 본문 고치기", () => assertSucceeds(saveBody(t1, "d1", "teacher1", "강사1")));
 await check("수정 시각 없이 본문만 고치면 거부", () => assertFails(setDoc(doc(fs(t1), "library/d1/body/main"), { doc: "{}" })));
 
@@ -99,11 +103,13 @@ await check("작성자가 선생과 공유로 바꾸기", () =>
 await check("다른 강사는 읽기", () => assertSucceeds(getDoc(doc(fs(t2), "library/d1/body/main"))));
 await check("관리자는 읽기", () => assertSucceeds(getDoc(doc(fs(admin), "library/d1"))));
 await check("학생은 못 읽음", () => assertFails(getDoc(doc(fs(stu), "library/d1"))));
-await check("다른 강사는 못 고침 (읽기만)", () => assertFails(saveBody(t2, "d1", "teacher2", "강사2")));
-await check("다른 강사는 제목도 못 고침", () =>
-  assertFails(updateDoc(doc(fs(t2), "library/d1"), { title: "바꿈", ...stamp("teacher2", "강사2") })),
+await check("다른 강사도 고치기 (강사 = 관리자)", () => assertSucceeds(saveBody(t2, "d1", "teacher2", "강사2")));
+await check("다른 강사도 제목 고치기", () =>
+  assertSucceeds(updateDoc(doc(fs(t2), "library/d1"), { title: "1회차 (수정)", ...stamp("teacher2", "강사2") })),
 );
-await check("다른 강사는 못 지움", () => assertFails(deleteDoc(doc(fs(t2), "library/d1"))));
+await check("다른 강사가 남의 자료를 나만 보기로 돌리면 거부", () =>
+  assertFails(updateDoc(doc(fs(t2), "library/d1"), { visibility: "private", ...stamp("teacher2", "강사2") })),
+);
 await check("관리자는 고치기", () => assertSucceeds(saveBody(admin, "d1", "admin", "관리자")));
 await check("관리자가 남의 자료를 나만 보기로 돌리면 거부", () =>
   assertFails(updateDoc(doc(fs(admin), "library/d1"), { visibility: "private", ...stamp("admin", "관리자") })),
@@ -148,13 +154,16 @@ await check("작성자가 이미지 올리기", () => assertSucceeds(uploadBytes
 await check("관리자가 공유된 자료에 이미지 올리기", () =>
   assertSucceeds(uploadBytes(sref(st(admin), "library/d1/b.png"), png, { contentType: "image/png" })),
 );
-await check("다른 강사는 못 올림", () => assertFails(uploadBytes(sref(st(t2), "library/d1/c.png"), png, { contentType: "image/png" })));
+await check("다른 강사도 공유 자료에 올리기", () => assertSucceeds(uploadBytes(sref(st(t2), "library/d1/c.png"), png, { contentType: "image/png" })));
+await check("남의 초안엔 못 올림", () => assertFails(uploadBytes(sref(st(t2), "library/draft/c.png"), png, { contentType: "image/png" })));
+await check("내 초안엔 올리기", () => assertSucceeds(uploadBytes(sref(st(t1), "library/draft/a.png"), png, { contentType: "image/png" })));
+await check("남의 초안 이미지는 못 지움", () => assertFails(deleteObject(sref(st(t2), "library/draft/a.png"))));
 await check("학생은 못 올림", () => assertFails(uploadBytes(sref(st(stu), "library/d1/d.png"), png, { contentType: "image/png" })));
 await check("이미지가 아닌 파일 거부", () =>
   assertFails(uploadBytes(sref(st(t1), "library/d1/e.exe"), png, { contentType: "application/octet-stream" })),
 );
 await check("없는 자료 폴더엔 못 올림", () => assertFails(uploadBytes(sref(st(t1), "library/nope/a.png"), png, { contentType: "image/png" })));
-await check("다른 강사는 이미지 못 지움", () => assertFails(deleteObject(sref(st(t2), "library/d1/a.png"))));
+await check("다른 강사도 공유 자료 이미지 지우기", () => assertSucceeds(deleteObject(sref(st(t2), "library/d1/c.png"))));
 await check("작성자는 이미지 지우기", () => assertSucceeds(deleteObject(sref(st(t1), "library/d1/a.png"))));
 
 console.log("삭제");
@@ -165,6 +174,8 @@ await check("작성자가 본문 · 자료 지우기", () => {
   return assertSucceeds(b.commit());
 });
 await check("관리자가 남의 공유 자료 지우기", () => assertSucceeds(deleteDoc(doc(fs(admin), "library/t2doc"))));
+await check("다른 강사가 남의 공유 자료 지우기", () => assertSucceeds(deleteDoc(doc(fs(t1), "library/t2doc2"))));
+await check("학생은 남의 공유 자료 못 지움", () => assertFails(deleteDoc(doc(fs(stu), "library/a1"))));
 
 await env.cleanup();
 console.log(`\n${pass}개 통과, ${fail}개 실패`);

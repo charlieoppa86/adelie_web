@@ -3,7 +3,7 @@
  * 권한은 firebase/firestore.rules · storage.rules 가 지킴. 여기서는 화면에 맞게 읽고 쓰기만.
  *
  * 공유 범위: private(🔒 나만 보기) → teachers(👩‍🏫 선생과 공유) → all(🌏 모두에게 공유)
- * 만들기: 강사 · 관리자 / 수정 · 삭제: 작성자 + 관리자(공유된 자료만) / 학생: 모두에게 공유된 자료 읽기만
+ * 강사 · 관리자(똑같음): 만들기, 공유된 자료 수정 · 삭제 / 나만 보기: 작성자만 / 학생: 모두에게 공유된 자료 읽기만
  */
 import {
   collection,
@@ -27,8 +27,8 @@ export type Visibility = "private" | "teachers" | "all";
 
 export const VISIBILITY: Record<Visibility, { icon: string; label: string; desc: string }> = {
   private: { icon: "🔒", label: "나만 보기", desc: "나만 볼 수 있어요 (초안)" },
-  teachers: { icon: "👩‍🏫", label: "선생과 공유", desc: "강사 · 관리자 아델리가 읽을 수 있어요" },
-  all: { icon: "🌏", label: "모두에게 공유", desc: "학생 아델리까지 모두 읽을 수 있어요" },
+  teachers: { icon: "👩‍🏫", label: "선생과 공유", desc: "강사 · 관리자 아델리가 함께 보고 고칠 수 있어요" },
+  all: { icon: "🌏", label: "모두에게 공유", desc: "학생 아델리도 읽을 수 있어요 (고치기는 강사 · 관리자)" },
 };
 
 export interface LibraryDoc {
@@ -53,7 +53,7 @@ export const isStaff = (role: Role) => role === "teacher" || role === "admin";
 
 /** 규칙과 같은 기준: 고칠 수 있는가 */
 export function canEdit(me: Me, d: Pick<LibraryDoc, "ownerId" | "visibility">) {
-  return isStaff(me.role) && (d.ownerId === me.uid || (me.role === "admin" && d.visibility !== "private"));
+  return isStaff(me.role) && (d.ownerId === me.uid || d.visibility !== "private");
 }
 
 const ms = (v: unknown) => (v instanceof Timestamp ? v.toMillis() : Date.now()); // 방금 쓴 값은 서버 시각이 아직 없음

@@ -182,11 +182,12 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - **노션식 블록 에디터**(Tiptap): `/` 메뉴로 제목 1~3 · 글머리/번호 목록(Tab으로 들여쓰기) · **토글** · 인용 · 코드 · 구분선 · 이미지, 글자를 고르면 굵게 · 기울임 · 취소선 · 코드 · 링크. 고치면 0.8초 뒤 자동 저장
   - **이미지 업로드**: `/이미지`, 붙여넣기, 끌어다 놓기 → Storage `library/{자료ID}/` (10MB 미만 이미지만). 자료를 지우면 이미지도 지움
   - **공유 범위 3단계**: 🔒 나만 보기(초안, 관리자도 못 봄) → 👩‍🏫 선생과 공유(강사 · 관리자 읽기) → 🌏 모두에게 공유(학생 읽기)
-  - **권한**: 만들기 = 강사 · 관리자 / 고치기 · 지우기 · 공유 범위 = 작성자 + 관리자(공유된 자료만, 남의 자료를 나만 보기로는 못 돌림) / 학생 = 모두에게 공유된 자료 읽기만 (토글은 펼쳐 볼 수 있음)
+  - **권한 (강사 = 관리자, 자료실에서는 똑같음)**: 만들기 · 공유된 자료(선생과 공유 · 모두에게 공유) 고치기 · 지우기 · 공유 범위 바꾸기 / 🔒 나만 보기는 작성자만 (남의 자료를 나만 보기로는 못 돌림) / 학생 = 모두에게 공유된 자료 읽기만 (토글은 펼쳐 볼 수 있음)
   - 저장소: **Firestore** `library/{id}`(목록 정보) + `library/{id}/body/main`(본문 JSON) — 목록을 볼 때 본문은 안 받음
-  - 역할 사본: Firestore · Storage 규칙은 RTDB를 못 읽으므로 함수 **`syncRole`**이 `users/{uid}/role` → Firestore `roles/{uid}`로 복사 (학생이면 지움)
-  - 검증: `npm run test:library` (51개: 권한 표 · 목록 질의 · 이미지 업로드/삭제. dev 에뮬레이터를 끄고 실행)
-  - **운영 배포 전 할 일**: Firestore(asia-northeast3) · Storage 콘솔에서 만들기(Storage는 Blaze 요금제), `firebase deploy --only firestore,storage,functions`, 그리고 **이미 강사 · 관리자인 계정은 역할을 한 번 다시 지정**해야 사본이 생김 (함수 배포 전에 지정된 역할은 복사되지 않음)
+  - 역할 사본: Firestore · Storage 규칙은 RTDB를 못 읽으므로 함수 **`syncRole`**이 `users/{uid}/role` → Firestore `roles/{uid}`로 복사 (학생이면 지움). 새 강사 · 관리자는 역할만 지정하면 자동
+  - 사본이 없거나 틀리면 자료실에 들어올 때 호출형 함수 **`syncMyRole`**이 RTDB 역할을 다시 복사 (권한은 안 올라감)
+  - 검증: `npm run test:library` (60개: 권한 표 · 목록 질의 · 이미지 업로드/삭제. dev 에뮬레이터를 끄고 실행)
+  - **운영 배포 전 할 일**: Firestore(asia-northeast3) · Storage 콘솔에서 만들기(Storage는 Blaze 요금제), `firebase deploy --only firestore,storage,functions` (2026-11-28 완료 — 운영 Firestore는 asia-northeast3)
 - 이후: 뽀모도로·통계·배지, 음성·화상, **모바일 전용 UI** (데스크톱과 다른 구성으로 따로 설계)
 
 - 2026-11-25: 화면의 역할 이름 "선생 아델리" → **"강사 아델리"** (랜딩과 통일). 내부 역할 값은 `teacher` 그대로
