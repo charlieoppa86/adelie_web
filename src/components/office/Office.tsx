@@ -55,6 +55,11 @@ const LERP_RATE = 6;
 const MIN_SCALE = 0.25;
 /** 4K 같은 큰 화면에서도 강의장이 화면을 채우도록 넉넉히 */
 const MAX_SCALE = 4;
+/** 마우스 휠 확대 · 축소: 화면 맞춤 배율의 80% ~ 120% */
+const ZOOM_MIN = 0.8;
+const ZOOM_MAX = 1.2;
+/** 휠 한 칸(deltaY 100)에 약 8% — 트랙패드의 잘게 나뉜 휠도 같은 비율로 */
+const ZOOM_SPEED = 0.0008;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
 const KEY_DIR: Record<string, [number, number]> = {
@@ -126,7 +131,12 @@ export function Office() {
   const els = useRef(new Map<string, { body?: HTMLDivElement; label?: HTMLDivElement }>());
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
-  const cam = useRef({ s: 1, ox: 0, oy: 0, vw: 0, vh: 0 });
+  /** s = 화면 맞춤 배율(fit) × 휠 확대 · 축소(zoom) */
+  const cam = useRef({ s: 1, fit: 1, ox: 0, oy: 0, vw: 0, vh: 0 });
+  const zoomRef = useRef(1);
+  const [zoom, setZoom] = useState(1);
+  /** 휠로 확대 · 축소한 직후: 마우스 아래 풍경 지점(px, py)이 화면의 (cx, cy)에 그대로 있도록 */
+  const zoomAnchor = useRef<{ cx: number; cy: number; px: number; py: number } | null>(null);
   const keys = useRef(new Set<string>());
   const path = useRef<{ points: Pt[]; seatId?: string } | null>(null);
   /** 배경 드래그로 옮긴 화면 위치 (기본 카메라 위치에서 얼마나 옮겼는지, 화면 px) */
@@ -413,14 +423,51 @@ export function Office() {
       const focusFit = Math.min(vw / w(CAMP_FOCUS), vh / h(CAMP_FOCUS));
       const viewCover = Math.max(vw / w(CAMP_VIEW), vh / h(CAMP_VIEW));
       const fit = Math.min(focusFit, viewCover);
-      const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
-      Object.assign(cam.current, { vw, vh, s });
+      const base = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
+      const s = base * zoomRef.current;
+      Object.assign(cam.current, { vw, vh, fit: base, s });
       // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
       worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / s))));
     });
     ro.observe(vp);
     return () => ro.disconnect();
   }, [conn]);
+
+  /* ---------- 마우스 휠: 확대 · 축소 (화면 맞춤의 80% ~ 120%, 마우스 위치 기준) ---------- */
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const onWheel = (e: WheelEvent) => {
+      // 창 · 패널(자료 목록, 플레이어 등) 위의 휠은 그쪽 스크롤
+      if ((e.target as HTMLElement).closest("[role=dialog], [role=alertdialog], [role=region], form")) return;
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? vp.clientHeight : 1; // 줄 · 페이지 단위 휠
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomRef.current * Math.exp(-e.deltaY * unit * ZOOM_SPEED)));
+      if (Math.abs(next - zoomRef.current) < 1e-4) return;
+      const c = cam.current;
+      const r = vp.getBoundingClientRect();
+      const cx = e.clientX - r.left;
+      const cy = e.clientY - r.top;
+      zoomAnchor.current = { cx, cy, px: (cx - c.ox) / c.s, py: (cy - c.oy) / c.s };
+      zoomRef.current = next;
+      c.s = c.fit * next;
+      worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / c.s))));
+      setZoom(Math.round(next * 100) / 100);
+      setPanned(true); // 마우스 위치 기준이라 화면도 옮겨짐 — 100%로 돌아와도 "원래 화면으로"를 보여 줌
+    };
+    vp.addEventListener("wheel", onWheel, { passive: false });
+    return () => vp.removeEventListener("wheel", onWheel);
+  }, [conn]);
+
+  /** 확대 · 축소와 배경 끌기를 처음 화면으로 */
+  const resetView = () => {
+    pan.current = { x: 0, y: 0 };
+    zoomRef.current = 1;
+    cam.current.s = cam.current.fit;
+    worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / cam.current.s))));
+    setZoom(1);
+    setPanned(false);
+  };
 
   /* ---------- 게임 루프: 이동 · 보간 · 카메라 ---------- */
   useEffect(() => {
@@ -548,6 +595,9 @@ export function Office() {
               ? view / 2 - ((a + b) / 2) * c.s
               : Math.min(-a * c.s, Math.max(view - b * c.s, view / 2 - mine * c.s));
           const L = land * c.s;
+          // 휠로 확대 · 축소한 직후: 마우스 아래 지점이 그 자리에 남도록 pan 을 맞춤
+          const a0 = zoomAnchor.current;
+          if (a0) pan.current[k] = (k === "x" ? a0.cx - a0.px * c.s : a0.cy - a0.py * c.s) - base;
           const o = L <= view ? (view - L) / 2 : Math.min(0, Math.max(view - L, base + pan.current[k]));
           if (L > view) pan.current[k] = o - base;
           return o;
@@ -555,8 +605,9 @@ export function Office() {
         const ox = axis(c.vw, CAMP_FOCUS.x1, CAMP_FOCUS.x2, me.x + CAMP_OFFSET.x, LANDSCAPE.w, "x");
         const oy = axis(c.vh, CAMP_FOCUS.y1, CAMP_FOCUS.y2, me.y + CAMP_OFFSET.y, LANDSCAPE.h, "y");
         // 끄는 동안은 손을 바로 따라오게, 그 밖에는 부드럽게
-        const follow = !placed || drag.current?.moved ? 1 : Math.min(1, dt * 8);
+        const follow = !placed || drag.current?.moved || zoomAnchor.current ? 1 : Math.min(1, dt * 8);
         placed = true;
+        zoomAnchor.current = null;
         c.ox += (ox - c.ox) * follow;
         c.oy += (oy - c.oy) * follow;
         world.style.transform = `translate3d(${c.ox.toFixed(1)}px, ${c.oy.toFixed(1)}px, 0) scale(${c.s})`;
@@ -1055,21 +1106,18 @@ export function Office() {
             {/* 조작 안내 (말하기는 오른쪽 채팅 탭) */}
             <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 rounded-full bg-ink-900/60 px-3 py-1 text-[11px] text-ink-200 backdrop-blur sm:block">
               <kbd className="font-bold text-white">WASD</kbd> 이동 · <kbd className="font-bold text-white">Space</kbd> 점프 ·{" "}
-              <kbd className="font-bold text-white">Enter</kbd> 말하기 · 클릭한 곳으로 걸어가기
+              <kbd className="font-bold text-white">Enter</kbd> 말하기 · 클릭한 곳으로 걸어가기 · 휠 확대 · 축소
             </p>
 
-            {panned && (
+            {(panned || zoom !== 1) && (
               <button
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  pan.current = { x: 0, y: 0 };
-                  setPanned(false);
-                }}
+                onClick={resetView}
                 className="absolute bottom-3 right-3 z-20 rounded-full bg-ink-900/85 px-3 py-1.5 text-xs font-bold text-ink-100 shadow-lg backdrop-blur hover:bg-ink-800"
-                title="배경을 끌어 옮긴 화면을 강의장 가운데로 되돌려요"
+                title="확대 · 축소하거나 끌어 옮긴 화면을 처음 화면으로 되돌려요"
               >
-                ⟲ 원래 위치로
+                {zoom !== 1 && <span className="mr-1.5 text-brand-300">🔍 {Math.round(zoom * 100)}%</span>}⟲ 원래 화면으로
               </button>
             )}
             {toast && (
