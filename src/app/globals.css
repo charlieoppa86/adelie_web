@@ -393,3 +393,22 @@ body {
 .doc-prose .doc-toggle summary::-webkit-details-marker { display: none; }
 .doc-prose .doc-toggle [data-type="detailsContent"] { margin-top: 0.15em; }
 .doc-prose .doc-toggle [data-type="detailsContent"][hidden] { display: none; }
+
+/* ============================================================
+   스터디룸 로딩 화면 (StudyLoading.tsx)
+   ============================================================ */
+.load-page { transform-box: fill-box; transform-origin: 0% 50%; animation: load-page 2.8s ease-in-out infinite; }
+@keyframes load-page {
+  0%, 55% { transform: scaleX(1); }
+  75% { transform: scaleX(-0.15); opacity: 0.85; }
+  76%, 100% { transform: scaleX(-1); opacity: 0; }
+}
+.load-dots span { animation: load-dot 1.2s ease-in-out infinite; }
+.load-dots span:nth-child(2) { animation-delay: 0.2s; }
+.load-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes load-dot { 0%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+.load-tip { animation: load-tip 0.5s ease-out both; }
+@keyframes load-tip { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .load-page, .load-dots span, .load-tip { animation: none !important; }
+}

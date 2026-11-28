@@ -173,6 +173,8 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     myPos = { ...myPos, m: false };
     await set(posRef, myPos);
     await set(playerRef, { name, role, conn, enteredAt, studyMs, ...(watching ? { watching: true } : {}) } satisfies Meta);
+    // 이미 있던 펭귄 · 위치를 다 받은 뒤에 입장 완료 (로딩 화면이 빈 맵을 보여 주지 않게)
+    await Promise.all([get(r("players")), get(r("pos"))]);
     if (stopped) return;
     entered = true;
     on.ready(uid);

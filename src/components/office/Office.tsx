@@ -27,6 +27,8 @@ import { Composer, type ComposerHandle } from "./Composer";
 import { Landscape } from "./Landscape";
 import { CreateLectureDialog, EndLectureDialog, LecturePlayer, LectureScreen, formatEndsAt, openLectureWindow } from "./LectureScreen";
 import { LibraryBoard, LibraryListDialog, useSharedLibrary } from "./LibraryBoard";
+import { StudyLoading } from "./StudyLoading";
+import { Penguin } from "@/components/penguin/Penguin";
 import { MapFloor, MapProps } from "./MapArt";
 import { IncomingRequestCard, OutgoingRequestCard, SecretChatPanel } from "./SecretChat";
 import { SidePanel, type SideTab } from "./SidePanel";
@@ -71,6 +73,12 @@ const isTyping = (t: EventTarget | null) =>
 export function Office() {
   const router = useRouter();
   const [conn, setConn] = useState<"connecting" | "ready" | "offline">("connecting");
+  /* 로딩 화면: 로그인 확인 → 첫 입장 → 데이터(스터디 LIVE · 자료 · 날씨 · 글꼴)가 모두 올 때까지 */
+  const [accountReady, setAccountReady] = useState(false);
+  const [joined, setJoined] = useState(false);
+  const [broadcastLoaded, setBroadcastLoaded] = useState(false);
+  const [fontsReady, setFontsReady] = useState(false);
+  const [dataTimedOut, setDataTimedOut] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [selfId, setSelfId] = useState<string | null>(null);
   const [players, setPlayers] = useState<Record<string, PlayerState>>({});
@@ -184,11 +192,13 @@ export function Office() {
     const unsubs: (() => void)[] = [];
 
     const start = (uid: string, profile: { name: string; role: PlayerState["role"] }) => {
+      setAccountReady(true);
       room = joinRoom(uid, profile, {
         ready: (id) => {
           selfIdRef.current = id;
           setSelfId(id);
           setConn("ready");
+          setJoined(true);
         },
         connection: (online) => setConn((c) => (online ? (c === "offline" ? "connecting" : c) : "offline")),
         serverOffset: (ms) => {
@@ -288,6 +298,7 @@ export function Office() {
       unsubs.push(
         watchBroadcast((b) => {
           setBroadcast(b);
+          setBroadcastLoaded(true);
           if (!b) {
             setPlayerOpen(false);
             setPopupOpen(false);
@@ -624,6 +635,24 @@ export function Office() {
   const isAdmin = me?.role === "admin";
   const shared = useSharedLibrary(!!selfId);
   const closeLibrary = useCallback(() => setLibraryOpen(false), []);
+
+  /* ---------- 로딩 화면 ---------- */
+  useEffect(() => {
+    let live = true;
+    void document.fonts?.ready.then(() => live && setFontsReady(true));
+    return () => {
+      live = false;
+    };
+  }, []);
+  // 입장 뒤 부가 데이터가 늦으면(네트워크 · 권한 문제) 8초 뒤엔 스터디룸을 보여 줌 — 입장 자체는 끝까지 기다림
+  useEffect(() => {
+    if (!joined) return;
+    const t = window.setTimeout(() => setDataTimedOut(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [joined]);
+  const dataReady = broadcastLoaded && (shared.docs !== null || shared.error) && weather !== null && fontsReady;
+  const booted = joined && (dataReady || dataTimedOut);
+  const loadingStep = !accountReady ? "account" : !joined ? "room" : "data";
   const watchLecture = () => {
     if (!broadcast) return;
     if (broadcast.kind === "youtube") {
@@ -736,7 +765,9 @@ export function Office() {
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-night">
+    <>
+      <StudyLoading done={booted} step={loadingStep} />
+      <div className="flex h-dvh flex-col overflow-hidden bg-night" inert={!booted}>
       {/* 상단 바 */}
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
         <a href={LANDING_URL} onClick={exitToLanding} className="flex items-center gap-2">
@@ -1106,9 +1137,22 @@ export function Office() {
               </div>
             )}
 
-            {conn === "connecting" && (
-              <div className="absolute inset-0 z-30 grid place-items-center bg-night/70 text-sm text-ink-200">
-                남극캠퍼스.ai에 들어가는 중…
+            {/* 쓰다가 연결이 끊기면: 보던 화면은 두고 작은 카드만 */}
+            {booted && conn !== "ready" && (
+              <div className="pointer-events-none absolute inset-x-0 top-4 z-30 flex justify-center" role="status">
+                <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-ink-900/90 px-4 py-2.5 shadow-2xl backdrop-blur">
+                  <span className="w-8">
+                    <Penguin laptop anim={["type"]} />
+                  </span>
+                  <span className="text-sm font-bold text-ink-100">
+                    {conn === "offline" ? "연결이 끊겼어요 — 다시 연결하는 중" : "스터디룸에 다시 들어가는 중"}
+                    <span className="load-dots" aria-hidden="true">
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
+                    </span>
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -1134,6 +1178,7 @@ export function Office() {
         )}
       </div>
     </div>
+    </>
   );
 }
 
