@@ -71,6 +71,9 @@
             "studySince": {
               ".validate": "newData.isNumber() && newData.val() <= now"
             },
+            "watching": {
+              ".validate": "newData.val() === true && newData.parent().parent().parent().child('broadcast').exists()"
+            },
             "$other": {
               ".validate": false
             }

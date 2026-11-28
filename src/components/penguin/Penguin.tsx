@@ -27,6 +27,8 @@ export interface PenguinPose {
   expr?: "happy";
   look?: [number, number];
   sparkles?: boolean;
+  /** AI 선글라스 — 스터디 LIVE 를 보는 중 */
+  shades?: boolean;
 }
 
 export interface PenguinProps extends PenguinPose {
@@ -112,6 +114,23 @@ export function PenguinSvg(o: PenguinPose) {
             </g>
           )}
         </g>
+        {o.shades && (
+          <g className="p-shades">
+            {/* 다리(템플) · 브리지 */}
+            <path d="M66 92L78 95M162 95L174 92" stroke={C.dark} strokeWidth="5" strokeLinecap="round" />
+            <path d="M114 96Q120 91 126 96" stroke="#5ff2c1" strokeWidth="4" fill="none" strokeLinecap="round" />
+            {/* 렌즈: 짙은 유리 + 오로라 테 */}
+            <rect x="74" y="84" width="42" height="28" rx="11" fill={C.dark} stroke="#5ff2c1" strokeWidth="3.5" />
+            <rect x="124" y="84" width="42" height="28" rx="11" fill={C.dark} stroke="#8b7bff" strokeWidth="3.5" />
+            {/* 반사광 */}
+            <path d="M82 104L96 89M89 106L101 93" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" opacity=".45" />
+            <path d="M132 104L146 89M139 106L151 93" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" opacity=".45" />
+            {/* AI 표시 */}
+            <text x="145" y="106" textAnchor="middle" fontSize="11" fontWeight="900" fill="#5ff2c1" opacity=".95">
+              AI
+            </text>
+          </g>
+        )}
         <path d="M109 114Q120 106 131 114Q126 126 120 129Q114 126 109 114Z" fill={C.coral2} />
         <ellipse cx="76" cy="124" rx="9" ry="5.5" fill={C.blush} opacity=".55" />
         <ellipse cx="164" cy="124" rx="9" ry="5.5" fill={C.blush} opacity=".55" />

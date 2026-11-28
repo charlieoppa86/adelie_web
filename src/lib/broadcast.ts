@@ -108,9 +108,14 @@ export function parseLectureUrl(input: string): LectureLink | null {
 /** 이 방식(라이브 · 녹화 영상)으로 쓸 수 있는 주소인지 — 녹화 영상은 유튜브만 */
 export const linkFitsMode = (link: LectureLink, mode: LectureMode) => mode === "live" || link.kind === "youtube";
 
-/** 유튜브 플레이어 주소 — 자동 재생은 브라우저 정책상 음소거로만 가능 (소리는 플레이어에서 켬) */
-export const youtubeEmbedUrl = (videoId: string) =>
-  `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&rel=0`;
+/**
+ * 유튜브 플레이어 주소 — 자동 재생은 브라우저 정책상 음소거로만 가능 (소리는 플레이어에서 켬)
+ * enablejsapi: 재생이 끝났는지 알려 받아 시청 표시(AI 선글라스)를 내리기 위해
+ */
+export const youtubeEmbedUrl = (videoId: string, origin?: string) =>
+  `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1${
+    origin ? `&origin=${encodeURIComponent(origin)}` : ""
+  }`;
 
 /** 지금 열린 강의 구독 (없거나 종료 예정 시각이 지났으면 null — 그 시각이 되면 자동으로 null 을 다시 알림) */
 export function watchBroadcast(

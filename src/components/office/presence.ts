@@ -9,7 +9,18 @@ export interface Presence {
 }
 
 /** 펭귄의 자리·움직임으로 포즈와 상태를 정합니다. */
+/** 스터디 LIVE 를 보는 중이면 AI 선글라스 + 상태 문구 (자리 · 동작은 그대로) */
 export function presenceOf(p: PlayerState): Presence {
+  const base = basePresence(p);
+  if (!p.watching) return base;
+  return {
+    ...base,
+    pose: { ...base.pose, shades: true, expr: undefined },
+    status: { ...base.status, emoji: "🕶️", label: "스터디 LIVE 시청 중" },
+  };
+}
+
+function basePresence(p: PlayerState): Presence {
   const cap = p.role === "teacher";
   const seat = p.seatId ? SEAT_BY_ID[p.seatId] : undefined;
 

@@ -22,11 +22,13 @@ import { AccountDialog } from "./AccountDialog";
 import { AdminPanel } from "./AdminPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { Avatar, LABEL_Z, type AvatarPart, type Bubble } from "./Avatar";
+import { CHAT_KEEP, ChatFeed, type ChatLine, type ChatLineInput } from "./ChatFeed";
 import { Composer, type ComposerHandle } from "./Composer";
 import { Landscape } from "./Landscape";
 import { CreateLectureDialog, EndLectureDialog, LecturePlayer, LectureScreen, formatEndsAt, openLectureWindow } from "./LectureScreen";
 import { MapFloor, MapProps } from "./MapArt";
 import { IncomingRequestCard, OutgoingRequestCard, SecretChatPanel } from "./SecretChat";
+import { SidePanel, type SideTab } from "./SidePanel";
 import { useSecretChat } from "./useSecretChat";
 import { WeatherBanner, WeatherChip, WeatherLayer, useHourlyWeather } from "./Weather";
 import { formatClock, formatDuration, presenceOf, ROLE_LABEL } from "./presence";
@@ -36,6 +38,8 @@ type Pt = { x: number; y: number };
 const SEAT_LABEL = { desk: "집중 개인석", standing: "스탠딩석", cafe: "카페석", sofa: "카페 소파" } as const;
 
 const SPEED = 210; // px/s
+/** 채팅 · 출석부 패널을 접었는지 기억하는 키 */
+const PANEL_KEY = "adelie:sidePanel";
 /** 위치 전송 간격 — 전송량이 접속자 수의 제곱으로 늘어 비용에 직결되므로 초당 5번으로 제한 */
 const SEND_EVERY = 200; // ms (5Hz)
 /** 다른 펭귄 보간 속도 — 전송 간격이 길어진 만큼 부드럽게 따라가도록 낮춤 */
@@ -73,7 +77,14 @@ export function Office() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
-  const [panelOpen, setPanelOpen] = useState(false);
+  /** 오른쪽 채팅 · 출석부 패널 — 기본은 펼침, 접으면 브라우저에 기억 */
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [sideTab, setSideTab] = useState<SideTab>("chat");
+  /** 실시간 채팅 (들어온 뒤의 말 + 입장 · 퇴장 · LIVE 안내) — 화면에만 모음 */
+  const [chatLines, setChatLines] = useState<ChatLine[]>([]);
+  const chatSeq = useRef(0);
+  /** 채팅 탭에서 마지막으로 본 줄 (안 읽은 수 계산) */
+  const [chatSeen, setChatSeen] = useState(0);
   /** 지금 머리 위에 떠 있는 말풍선 (펭귄 ID → 마지막 말) */
   const [bubbles, setBubbles] = useState<Record<string, Bubble>>({});
   const composerRef = useRef<ComposerHandle>(null);
@@ -86,6 +97,11 @@ export function Office() {
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
+  /** 유튜브 영상 재생이 끝났는지 (끝나면 AI 선글라스를 내림) */
+  const [ytEnded, setYtEnded] = useState(false);
+  /** 줌 · 미트 새 창이 열려 있는지 (닫으면 AI 선글라스를 내림) */
+  const [popupOpen, setPopupOpen] = useState(false);
+  const popupRef = useRef<Window | null>(null);
   const [endOpen, setEndOpen] = useState(false);
   /** 내가 방금 끝낸 강의 — 시청자용 "강의가 끝났어요" 알림을 띄우지 않으려고 */
   const selfEndedRef = useRef(false);
@@ -110,6 +126,19 @@ export function Office() {
   useEffect(() => {
     playersRef.current = players;
   }, [players]);
+
+  /** 채팅 목록에 한 줄 추가 (같은 말이 두 번 오면 무시, 오래된 줄은 버림) */
+  const pushChat = useCallback((line: ChatLineInput) => {
+    setChatLines((ls) => {
+      if (ls.some((l) => l.id === line.id)) return ls;
+      const next = [...ls, { ...line, seq: ++chatSeq.current } as ChatLine];
+      return next.length > CHAT_KEEP ? next.slice(-CHAT_KEEP) : next;
+    });
+  }, []);
+  const pushSystem = useCallback(
+    (text: string) => pushChat({ kind: "system", id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, text, at: Date.now() }),
+    [pushChat],
+  );
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -165,8 +194,10 @@ export function Office() {
         },
         player: (p, joined) => {
           upsert(p);
-          if (joined && p.id !== selfIdRef.current)
+          if (joined && p.id !== uid) {
             showToast(`${p.role === "teacher" ? "🎓 강사" : "🐧 학생"} 아델리 ${p.name} 님이 입장했어요`);
+            pushSystem(`${p.name} 님이 입장했어요`);
+          }
         },
         moved: (pid, { x, y, dir, moving }) => {
           const cur = pos.current.get(pid);
@@ -178,6 +209,8 @@ export function Office() {
         left: (pid) => {
           dm?.peerLeft(pid);
           pos.current.delete(pid);
+          const leaving = playersRef.current[pid];
+          if (leaving) pushSystem(`${leaving.name} 님이 퇴장했어요`);
           setPlayers((ps) => {
             const { [pid]: gone, ...rest } = ps;
             if (gone) showToast(`${gone.name} 님이 퇴장했어요`);
@@ -196,6 +229,7 @@ export function Office() {
           const self = selfIdRef.current;
           const mentionsMe = !!self && playerId !== self && msg.mentions.some((m) => m.id === self);
           setBubbles((b) => (b[playerId]?.msg.id === msgId ? b : { ...b, [playerId]: { msg, mentionsMe } }));
+          pushChat({ kind: "msg", ...msg, id: `${playerId}-${msgId}`, role: sender.role, mine: playerId === self, mentionsMe });
           window.setTimeout(() => {
             setBubbles((b) => {
               if (b[playerId]?.msg.id !== msgId) return b;
@@ -253,10 +287,15 @@ export function Office() {
           setBroadcast(b);
           if (!b) {
             setPlayerOpen(false);
+            setPopupOpen(false);
             setEndOpen(false);
           }
           if (prev !== undefined) {
-            if (b && (!prev || b.startedAt !== prev.startedAt)) {
+            // 내가 만든 강의는 시작 시각이 화면 추정값 → 서버값으로 한 번 더 바뀌어 옴: 몇 초 차이는 같은 강의
+            const isNew = !!b && (!prev || prev.hostUid !== b.hostUid || prev.url !== b.url || Math.abs(prev.startedAt - b.startedAt) > 5000);
+            if (b && (isNew || (prev && b.mode !== prev.mode))) setYtEnded(false);
+            if (b && isNew) {
+              pushSystem(`${b.mode === "live" ? "🔴" : "🍿"} ${b.hostName} 님이 스터디 LIVE를 시작했어요`);
               if (b.hostUid !== uid)
                 showToast(
                   b.mode === "live"
@@ -265,7 +304,9 @@ export function Office() {
                 );
             } else if (b && prev && prev.mode === "live" && b.mode === "vod") {
               showToast("▶ LIVE가 끝나고 다시보기로 바뀌었어요 — \"뭐 보지?\"로 볼 수 있어요");
+              pushSystem("▶ LIVE가 다시보기로 바뀌었어요");
             } else if (!b && prev) {
+              pushSystem("📺 스터디 LIVE가 끝났어요");
               if (selfEndedRef.current) selfEndedRef.current = false;
               else showToast("📺 스터디 LIVE 강의가 끝났어요");
             }
@@ -297,7 +338,7 @@ export function Office() {
       void room?.leave();
       roomRef.current = null;
     };
-  }, [router, upsert, showToast, dmEvents, serverNow]);
+  }, [router, upsert, showToast, dmEvents, serverNow, pushChat, pushSystem]);
 
   /* ---------- 스터디 LIVE: 자동 종료 10분 전 관리자에게 알림 ---------- */
   const endsAt = broadcast?.endsAt;
@@ -322,7 +363,12 @@ export function Office() {
         if (!e.repeat) roomRef.current?.jump();
       } else if (e.key === "Enter") {
         e.preventDefault();
-        composerRef.current?.focus();
+        if (composerRef.current) composerRef.current.focus();
+        else {
+          // 패널을 접어 둔 상태면 펼치고 입력창으로
+          setPanelOpen(true);
+          window.setTimeout(() => composerRef.current?.focus(), 0);
+        }
       } else if (e.key === "Escape") setSelectedId(null);
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.code);
@@ -526,7 +572,12 @@ export function Office() {
     else els.current.delete(id);
   }, []);
 
-  const list = useMemo(() => Object.values(players), [players]);
+  /** 강의가 끝났는데 아직 시청 표시가 남은 펭귄은 선글라스를 바로 벗김 (각자 화면이 지우기 전에도) */
+  const lectureOn = !!broadcast;
+  const list = useMemo(
+    () => Object.values(players).map((p) => (p.watching && !lectureOn ? { ...p, watching: false } : p)),
+    [players, lectureOn],
+  );
   const occupied = useMemo(() => new Map(list.filter((p) => p.seatId).map((p) => [p.seatId!, p])), [list]);
   const me = selfId ? players[selfId] : undefined;
   /** 지금 떠 있는 말풍선에서 @로 불린 펭귄들 */
@@ -540,13 +591,65 @@ export function Office() {
     },
     [showToast],
   );
-  const selected = selectedId ? players[selectedId] : undefined;
+  /* ---------- 채팅 · 출석부 패널 ---------- */
+  const lastChatSeq = chatLines.at(-1)?.seq ?? 0;
+  const chatVisible = panelOpen && sideTab === "chat";
+  const unreadLines = chatVisible ? [] : chatLines.filter((l) => l.seq > chatSeen && l.kind === "msg" && !l.mine);
+  const unread = { count: unreadLines.length, mention: unreadLines.some((l) => l.kind === "msg" && l.mentionsMe) };
+  /** 채팅을 안 보게 되는 순간까지 읽은 것으로 침 */
+  const leaveChatView = () => {
+    if (chatVisible) setChatSeen(lastChatSeq);
+  };
+  const changeSideTab = (t: SideTab) => {
+    leaveChatView();
+    setSideTab(t);
+  };
+  const togglePanel = (open: boolean) => {
+    if (!open) leaveChatView();
+    setPanelOpen(open);
+    try {
+      localStorage.setItem(PANEL_KEY, open ? "1" : "0");
+    } catch {}
+  };
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(PANEL_KEY) === "0") setPanelOpen(false);
+    } catch {}
+  }, []);
+
+  const selected = selectedId ? list.find((p) => p.id === selectedId) : undefined;
   const isAdmin = me?.role === "admin";
   const watchLecture = () => {
     if (!broadcast) return;
-    if (broadcast.kind === "youtube") setPlayerOpen(true);
-    else openLectureWindow(broadcast.url);
+    if (broadcast.kind === "youtube") {
+      setYtEnded(false);
+      setPlayerOpen(true);
+      return;
+    }
+    const w = openLectureWindow(broadcast.url);
+    if (!w) return showToast("새 창이 막혔어요. 브라우저의 팝업 차단을 풀어 주세요.");
+    popupRef.current = w;
+    setPopupOpen(true);
   };
+
+  /* ---------- 스터디 LIVE 시청 표시 (AI 선글라스) ---------- */
+  // 유튜브: 스터디룸 플레이어를 열어 두고 영상이 끝나지 않았을 때 / 줌 · 미트: 새 창이 열려 있을 때.
+  // 강의가 끝나면(관리자 종료 · 예약 시각) broadcast 가 null 이 되어 모두 내려감
+  const watchingNow = !!broadcast && ((playerOpen && broadcast.kind === "youtube" && !ytEnded) || (popupOpen && broadcast.kind !== "youtube"));
+  useEffect(() => {
+    roomRef.current?.setWatching(watchingNow);
+  }, [watchingNow, conn]);
+  // 새 창은 닫혀도 알림이 없어 2초마다 확인
+  useEffect(() => {
+    if (!popupOpen) return;
+    const t = window.setInterval(() => {
+      if (!popupRef.current || popupRef.current.closed) {
+        popupRef.current = null;
+        setPopupOpen(false);
+      }
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [popupOpen]);
   const endLecture = () => {
     selfEndedRef.current = true;
     endBroadcast()
@@ -681,15 +784,24 @@ export function Office() {
               <span className="sr-only sm:hidden">내 정보</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setPanelOpen((o) => !o)}
-            className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold lg:hidden"
-            aria-expanded={panelOpen}
-            aria-controls="attendance"
-          >
-            출석부
-          </button>
+          {!panelOpen && (
+            <button
+              type="button"
+              onClick={() => togglePanel(true)}
+              className="relative rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/15"
+              aria-expanded={false}
+              aria-controls="side-panel"
+            >
+              💬 채팅 · 출석부
+              {unread.count > 0 && (
+                <span
+                  className={`absolute -right-1 -top-1 min-w-4 rounded-full px-1 text-[10px] leading-4 text-white ${unread.mention ? "bg-coral-500" : "bg-brand-500"}`}
+                >
+                  {unread.count > 99 ? "99+" : unread.count}
+                </span>
+              )}
+            </button>
+          )}
           <a href={LANDING_URL} onClick={exitToLanding} className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-bold text-ink-200 hover:bg-white/5">
             나가기
           </a>
@@ -768,6 +880,7 @@ export function Office() {
                   onWatch={watchLecture}
                   onExtend={extendLecture}
                   onEnd={() => setEndOpen(true)}
+                  watchers={list.filter((p) => p.watching).length}
                 />
 
                 {/* 빈 자리 */}
@@ -839,7 +952,12 @@ export function Office() {
                     <button
                       type="button"
                       onClick={() => {
-                        composerRef.current?.mention(selected.name);
+                        const name = selected.name;
+                        if (composerRef.current) composerRef.current.mention(name);
+                        else {
+                          setPanelOpen(true);
+                          window.setTimeout(() => composerRef.current?.mention(name), 0);
+                        }
                         setSelectedId(null);
                       }}
                       className="rounded-xl bg-brand-500/25 py-2 text-sm font-bold text-brand-100 hover:bg-brand-500/40"
@@ -876,6 +994,12 @@ export function Office() {
                 )}
               </div>
             )}
+
+            {/* 조작 안내 (말하기는 오른쪽 채팅 탭) */}
+            <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 rounded-full bg-ink-900/60 px-3 py-1 text-[11px] text-ink-200 backdrop-blur sm:block">
+              <kbd className="font-bold text-white">WASD</kbd> 이동 · <kbd className="font-bold text-white">Space</kbd> 점프 ·{" "}
+              <kbd className="font-bold text-white">Enter</kbd> 말하기 · 클릭한 곳으로 걸어가기
+            </p>
 
             {panned && (
               <button
@@ -928,7 +1052,7 @@ export function Office() {
             )}
 
             {playerOpen && broadcast?.kind === "youtube" && (
-              <LecturePlayer broadcast={broadcast} onClose={() => setPlayerOpen(false)} />
+              <LecturePlayer broadcast={broadcast} onClose={() => setPlayerOpen(false)} onEnded={setYtEnded} />
             )}
             {createOpen && isAdmin && me && selfId && (
               <CreateLectureDialog
@@ -973,30 +1097,25 @@ export function Office() {
             )}
           </div>
 
-          {/* 말하기 창 */}
-          <div className="shrink-0 border-t border-white/10 bg-night px-4 pb-3 pt-3">
-            <Composer ref={composerRef} players={list} selfId={selfId} disabled={conn !== "ready"} onSend={sendChat} />
-          </div>
         </div>
 
-        {/* 출석부 */}
-        <aside
-          id="attendance"
-          className={`absolute inset-y-0 right-0 z-30 w-72 border-l border-white/10 bg-night/95 backdrop-blur transition-transform lg:static lg:translate-x-0 ${
-            panelOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          <AttendancePanel
-            players={list}
-            selfId={selfId}
-            selectedId={selectedId}
-            clockOffset={clockOffset}
-            onSelect={(id) => {
-              setSelectedId(id);
-              setPanelOpen(false);
-            }}
-          />
-        </aside>
+        {/* 채팅 · 출석부 */}
+        {panelOpen && (
+          <aside id="side-panel" className="w-80 shrink-0 border-l border-white/10 bg-night/95">
+            <SidePanel
+              tab={sideTab}
+              onTab={changeSideTab}
+              onCollapse={() => togglePanel(false)}
+              unread={unread}
+              online={list.length}
+              chat={<ChatFeed lines={chatLines} selfName={me?.name} onSelect={setSelectedId} />}
+              composer={<Composer ref={composerRef} players={list} selfId={selfId} disabled={conn !== "ready"} onSend={sendChat} />}
+              attendance={
+                <AttendancePanel players={list} selfId={selfId} selectedId={selectedId} clockOffset={clockOffset} onSelect={setSelectedId} />
+              }
+            />
+          </aside>
+        )}
       </div>
     </div>
   );

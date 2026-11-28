@@ -9,7 +9,7 @@
  * 라이브: 빨간 녹화 표시 + LIVE + 진행자 닉네임. 유튜브는 플레이어 창, 줌·미트는 새 창
  * 기존 영상: ▶ 녹화 영상 + 올린 사람 닉네임, 플레이어 창 (각자 처음부터)
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DURATION_CHOICES,
   EXTEND_MS,
@@ -35,8 +35,16 @@ export function formatEndsAt(at: number) {
 const stop = (e: React.PointerEvent) => e.stopPropagation();
 
 /** 줌·미트·유튜브 페이지를 새 창으로 — 듀얼 모니터면 다른 화면으로 옮겨 둘 수 있게 팝업 창으로 엶 */
-export function openLectureWindow(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer,popup,width=1280,height=760");
+/**
+ * 줌 · 미트 · 유튜브를 새 창으로 — 창을 닫았는지 알 수 있게 창 핸들을 돌려줌 (팝업이 막히면 null).
+ * noopener 를 쓰면 핸들을 못 받으므로, 빈 창을 연 뒤 opener 를 끊고 주소로 이동
+ */
+export function openLectureWindow(url: string): Window | null {
+  const w = window.open("", "_blank", "popup,width=1280,height=760");
+  if (!w) return null;
+  w.opener = null;
+  w.location.href = url;
+  return w;
 }
 
 /** 빨간 녹화 표시 (깜빡임) */
@@ -73,6 +81,8 @@ export function LectureScreen(props: {
   onExtend: () => void;
   /** 관리자: 종료 창 열기 */
   onEnd: () => void;
+  /** 지금 보고 있는 펭귄 수 (AI 선글라스) */
+  watchers: number;
 }) {
   const { broadcast: b } = props;
   const { x, y, w, h } = LECTURE_SCREEN;
@@ -101,6 +111,11 @@ export function LectureScreen(props: {
           <p className="max-w-full truncate text-[15px] font-extrabold text-white" title={b.hostName}>
             🎙️ {b.hostName}
           </p>
+          {props.watchers > 0 && (
+            <p className="-mt-1 text-[11px] font-bold text-aurora-green" title="출석부에서 🕶️ 표시로 누가 보는지 볼 수 있어요">
+              🕶️ {props.watchers}명 시청 중
+            </p>
+          )}
           <div className="flex gap-1.5">
             <button
               type="button"
@@ -404,9 +419,39 @@ export function EndLectureDialog(props: { broadcast: Broadcast; onEnd: () => voi
 }
 
 /** 유튜브 플레이어 창 (스터디룸 왼쪽 아래, 접기 가능) */
-export function LecturePlayer(props: { broadcast: Broadcast; onClose: () => void }) {
-  const { broadcast: b } = props;
+export function LecturePlayer(props: {
+  broadcast: Broadcast;
+  onClose: () => void;
+  /** 영상 재생이 끝남(ended=true) · 다시 재생(false) — 녹화 영상이 끝나면 AI 선글라스를 내림 */
+  onEnded: (ended: boolean) => void;
+}) {
+  const { broadcast: b, onEnded } = props;
   const [min, setMin] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // 유튜브 플레이어가 보내는 상태 알림 (0 = 끝남, 1 = 재생 중)
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frameRef.current?.contentWindow || !/(^|\.)youtube(-nocookie)?\.com$/.test(new URL(e.origin).hostname)) return;
+      let d: { event?: string; info?: unknown } | null = null;
+      try {
+        d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+      } catch {
+        return;
+      }
+      const state =
+        d?.event === "onStateChange"
+          ? d.info
+          : d?.event === "infoDelivery"
+            ? (d.info as { playerState?: number } | null)?.playerState
+            : undefined;
+      if (state === 0) onEnded(true);
+      else if (state === 1) onEnded(false);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onEnded]);
+
   if (!b.videoId) return null;
   return (
     <div
@@ -443,8 +488,11 @@ export function LecturePlayer(props: { broadcast: Broadcast; onClose: () => void
       {/* 접어도 소리는 이어지도록 플레이어는 그대로 두고 높이만 0 */}
       <div className={min ? "h-0" : "aspect-video"}>
         <iframe
+          ref={frameRef}
           key={b.videoId}
-          src={youtubeEmbedUrl(b.videoId)}
+          src={youtubeEmbedUrl(b.videoId, typeof window === "undefined" ? undefined : window.location.origin)}
+          // 상태 알림을 받겠다고 플레이어에 등록
+          onLoad={(e) => e.currentTarget.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: b.videoId, channel: "widget" }), "*")}
           title={`${b.hostName} 님의 유튜브 ${b.mode === "live" ? "라이브" : "녹화 영상"}`}
           className="h-full w-full"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"

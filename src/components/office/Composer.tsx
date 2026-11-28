@@ -24,7 +24,7 @@ const MENTION_QUERY = /(^|\s)@([가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9_]*)$/;
 const MAX_ROWS_PX = 132;
 
 /**
- * 하단 말하기 창 — LLM 프롬프트창처럼 쓰고 Enter로 보내면 내 펭귄 머리 위에 말풍선이 떠요.
+ * 말하기 창 (오른쪽 채팅 탭 아래) — Enter로 보내면 채팅 목록과 내 펭귄 머리 위 말풍선에 함께 떠요.
  * @를 입력하면 지금 접속 중인 펭귄을 자동완성으로 태그할 수 있어요.
  */
 export function Composer({ ref, players, selfId, disabled, onSend }: Props) {
@@ -202,16 +202,12 @@ export function Composer({ ref, players, selfId, disabled, onSend }: Props) {
           </svg>
         </button>
       </div>
-      <div className="mt-1.5 flex items-center justify-between gap-3 px-2 text-[11px] text-ink-400">
+      <div className="mt-1.5 flex items-center justify-between gap-2 px-1 text-[11px] text-ink-400">
         <span>
-          <kbd className="font-bold text-ink-200">Enter</kbd> 보내기 · <kbd className="font-bold text-ink-200">Shift+Enter</kbd> 줄바꿈 ·{" "}
-          <kbd className="font-bold text-ink-200">@닉네임</kbd>으로 부르기 · 말풍선은 6초 뒤 사라져요
+          <kbd className="font-bold text-ink-200">Enter</kbd> 보내기 · <kbd className="font-bold text-ink-200">@닉네임</kbd>으로 부르기
         </span>
-        <span className="hidden shrink-0 sm:inline">
-          <kbd className="font-bold text-ink-200">WASD</kbd> 이동 · <kbd className="font-bold text-ink-200">Space</kbd> 점프 ·{" "}
-          <span className={text.length > CHAT_MAX - 20 ? "text-coral-300" : ""}>
-            {text.length}/{CHAT_MAX}
-          </span>
+        <span className={`shrink-0 tabular-nums ${text.length > CHAT_MAX - 20 ? "text-coral-300" : ""}`}>
+          {text.length}/{CHAT_MAX}
         </span>
       </div>
     </div>

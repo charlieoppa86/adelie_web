@@ -70,6 +70,8 @@ export interface RoomHandle {
   jump: () => void;
   say: (text: string) => Promise<SayResult>;
   leave: () => Promise<void>;
+  /** 스터디 LIVE 를 보는 중인지 (다른 펭귄에게 AI 선글라스로 보임) */
+  setWatching: (on: boolean) => void;
 }
 
 const seoulDay = (ms: number) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
@@ -82,6 +84,7 @@ interface Meta {
   enteredAt: number;
   studyMs: number;
   studySince?: number;
+  watching?: boolean;
 }
 interface Pos {
   x: number;
@@ -104,6 +107,8 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
   /** 역할은 관리자가, 닉네임은 본인이 바꿀 수 있어 따로 들고 있음 */
   let role = profile.role;
   let name = profile.name;
+  /** 스터디 LIVE 시청 중 — 다시 연결돼 펭귄을 새로 올릴 때도 이어 감 */
+  let watching = false;
 
   let offset = 0;
   const now = () => Date.now() + offset;
@@ -130,6 +135,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
       enteredAt: m.enteredAt,
       studyMs: m.studyMs,
       studySince: m.studySince ?? null,
+      watching: m.watching === true,
     };
   };
 
@@ -166,7 +172,7 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
     await set(attRef, { enteredAt, studyMs });
     myPos = { ...myPos, m: false };
     await set(posRef, myPos);
-    await set(playerRef, { name, role, conn, enteredAt, studyMs } satisfies Meta);
+    await set(playerRef, { name, role, conn, enteredAt, studyMs, ...(watching ? { watching: true } : {}) } satisfies Meta);
     if (stopped) return;
     entered = true;
     on.ready(uid);
@@ -349,6 +355,11 @@ export function joinRoom(uid: string, profile: AccountProfile, on: RoomEvents, d
       }
     },
 
+    setWatching(on) {
+      if (on === watching) return;
+      watching = on;
+      if (entered && !stopped) set(r(`players/${uid}/watching`), on ? true : null).catch(() => {});
+    },
     async leave() {
       if (stopped) return;
       standPatch(); // 공부 시간 정산·출석 저장 (펭귄 노드는 통째로 지우므로 패치는 자리만 씀)

@@ -209,6 +209,23 @@ await check("종료 시각이 24시간 넘으면 거부", () =>
   assertFails(set(ref(db(dave), BC), lecture("dave", "관리펭귄", { endsAt: Date.now() + 25 * 3_600_000 }))),
 );
 
+console.log("스터디 LIVE 시청 표시 (AI 선글라스)");
+await env.withSecurityRulesDisabled((ctx) => remove(ref(ctx.database(), BC)));
+await check("강의가 없으면 시청 표시 거부", () =>
+  assertFails(set(ref(db(bob), "rooms/main/players/bob"), meta("밥펭귄", { watching: true }))),
+);
+await check("bob 입장 (시청 표시 없이)", () => assertSucceeds(set(ref(db(bob), "rooms/main/players/bob"), meta("밥펭귄"))));
+await check("강의가 없으면 시청 표시 켜기 거부", () => assertFails(set(ref(db(bob), "rooms/main/players/bob/watching"), true)));
+await assertSucceeds(set(ref(db(dave), BC), lecture("dave", "관리펭귄")));
+await check("강의 중엔 시청 표시 켜기", () => assertSucceeds(set(ref(db(bob), "rooms/main/players/bob/watching"), true)));
+await check("false 같은 다른 값은 거부 (끌 땐 지움)", () => assertFails(set(ref(db(bob), "rooms/main/players/bob/watching"), false)));
+await check("남의 시청 표시는 못 바꿈", () => assertFails(remove(ref(db(alice), "rooms/main/players/bob/watching"))));
+await check("시청 표시 끄기", () => assertSucceeds(remove(ref(db(bob), "rooms/main/players/bob/watching"))));
+await check("재입장 때 시청 표시 포함", () =>
+  assertSucceeds(set(ref(db(bob), "rooms/main/players/bob"), meta("밥펭귄", { watching: true }))),
+);
+await env.withSecurityRulesDisabled((ctx) => remove(ref(ctx.database(), BC)));
+
 console.log("닉네임 변경 (30일에 2번) · 탈퇴 유예");
 const frank = env.authenticatedContext("frank");
 const gina = env.authenticatedContext("gina");

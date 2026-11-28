@@ -48,7 +48,7 @@ export function AttendancePanel({ players, selfId, selectedId, clockOffset, onSe
       </header>
       <ul className="flex-1 space-y-1 overflow-y-auto p-2">
         {sorted.map((p) => {
-          const { status } = presenceOf(p);
+          const { status, pose } = presenceOf(p);
           return (
             <li key={p.id}>
               <button
@@ -59,7 +59,7 @@ export function AttendancePanel({ players, selfId, selectedId, clockOffset, onSe
                 }`}
               >
                 <div className="relative w-9 shrink-0">
-                  <Penguin cap={p.role === "teacher"} expr={status.studying ? undefined : "happy"} />
+                  <Penguin cap={p.role === "teacher"} expr={status.studying || pose.shades ? undefined : "happy"} shades={pose.shades} />
                   <span
                     className={`absolute -right-0.5 bottom-0 h-2.5 w-2.5 rounded-full ring-2 ring-ink-900 ${
                       status.studying ? "bg-aurora-green" : "bg-ink-300"

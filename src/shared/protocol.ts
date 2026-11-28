@@ -19,6 +19,8 @@ export interface PlayerState {
   /** 지금까지 누적된 공부 시간 (ms) — 현재 공부 중인 구간은 studySince로 계산 */
   studyMs: number;
   studySince: number | null;
+  /** 스터디 LIVE 강의 · 영상을 보는 중 (AI 선글라스 표시) */
+  watching?: boolean;
 }
 
 export interface MovePayload {
