@@ -13,7 +13,8 @@
     "test:room": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-room.ts; else firebase emulators:exec --only auth,functions,database \"tsx scripts/test-room.ts\"; fi",
     "test:dm": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-dm.ts; else firebase emulators:exec --only auth,functions,database \"tsx scripts/test-dm.ts\"; fi",
     "test:account": "if lsof -ti tcp:9000 >/dev/null; then tsx scripts/test-account.ts; else firebase emulators:exec --only auth,functions,database \"tsx scripts/test-account.ts\"; fi",
-    "test:library": "if lsof -ti tcp:8080 >/dev/null; then echo 'npm run dev 에뮬레이터를 먼저 꺼 주세요 (Storage 규칙의 Firestore 교차 조회는 테스트 전용 프로젝트에서만 검증 — 로컬 데이터를 지우지 않도록)'; exit 1; fi; firebase emulators:exec --project demo-adelie-library --only firestore,storage \"npx tsx scripts/test-library.mts\""
+    "test:library": "if lsof -ti tcp:8080 >/dev/null; then echo 'npm run dev 에뮬레이터를 먼저 꺼 주세요 (Storage 규칙의 Firestore 교차 조회는 테스트 전용 프로젝트에서만 검증 — 로컬 데이터를 지우지 않도록)'; exit 1; fi; firebase emulators:exec --project demo-adelie-library --only firestore,storage \"npx tsx scripts/test-library.mts\"",
+    "seed:library": "tsx scripts/seed-library-sample.mts"
   },
   "dependencies": {
     "@tiptap/extension-details": "^3.35.1",

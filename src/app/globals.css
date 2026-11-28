@@ -362,6 +362,9 @@ body {
 .doc-prose li::marker { color: var(--color-ink-400); }
 .doc-prose img.doc-image { margin: 0.8em 0; max-width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,.08); }
 .doc-prose img.doc-image.ProseMirror-selectednode { outline: 2px solid var(--color-brand-400); }
+/* 올리는 중 (임시 주소) */
+.doc-prose img.doc-image[src^="blob:"] { opacity: 0.45; animation: doc-uploading 1.2s ease-in-out infinite alternate; }
+@keyframes doc-uploading { to { opacity: 0.75; } }
 .doc-prose p.is-empty::before,
 .doc-prose h1.is-empty::before,
 .doc-prose h2.is-empty::before,
@@ -385,7 +388,8 @@ body {
 .doc-prose .doc-toggle > button::before { content: "▸"; transition: transform .15s; }
 .doc-prose .doc-toggle.is-open > button::before { transform: rotate(90deg); }
 .doc-prose .doc-toggle > div { flex: 1; min-width: 0; }
-.doc-prose .doc-toggle summary { list-style: none; font-weight: 600; color: #fff; }
+/* summary 기본값은 display: list-item 이라 바깥 번호 목록의 번호를 먹음 (1. → 4.) */
+.doc-prose .doc-toggle summary { display: block; list-style: none; font-weight: 600; color: #fff; }
 .doc-prose .doc-toggle summary::-webkit-details-marker { display: none; }
 .doc-prose .doc-toggle [data-type="detailsContent"] { margin-top: 0.15em; }
 .doc-prose .doc-toggle [data-type="detailsContent"][hidden] { display: none; }
