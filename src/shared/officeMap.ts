@@ -44,6 +44,18 @@ export const CAMP_VIEW = {
   y2: CAMP_OFFSET.y + CAMP_BOTTOM + 14,
 } as const;
 
+/**
+ * 꼭 보여야 하는 강의장 범위 — 풍경 좌표. 벽의 자료실 · 스터디 LIVE 판 · 카페 이글루 윗선(약 60)부터
+ * 맨 아래 자리 · 얼음판 끝(820)까지, 좌우는 얼음판 끝(96 · 1504).
+ * 화면 비율이 강의장과 다르면 CAMP_VIEW 바깥 여백(랜턴 줄 위 · 빙붕 옆면)은 잘라서 화면을 더 꽉 채움
+ */
+export const CAMP_FOCUS = {
+  x1: CAMP_OFFSET.x + 96,
+  y1: CAMP_OFFSET.y + 60,
+  x2: CAMP_OFFSET.x + 1504,
+  y2: CAMP_OFFSET.y + 820,
+} as const;
+
 /** 걸어다닐 수 있는 얼음판 범위 (위쪽은 빙벽, 가장자리는 바다) */
 export const WALKABLE = { x1: 110, y1: fy(215), x2: 1490, y2: fy(935) } as const;
 

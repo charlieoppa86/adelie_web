@@ -9,7 +9,7 @@ import { LANDING_URL } from "@/lib/links";
 import { startDm, type DmHandle } from "@/lib/dm";
 import { dismiss, kick, setRole, watchBan, watchFlags, type FlaggedTarget } from "@/lib/moderation";
 import { joinRoom, type RoomHandle } from "@/lib/room";
-import { CAMP_OFFSET, CAMP_VIEW, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
+import { CAMP_FOCUS, CAMP_OFFSET, CAMP_VIEW, LANDSCAPE, SEATS, WORLD, isBlocked } from "@/shared/officeMap";
 import { findPath } from "@/shared/pathfind";
 import {
   BUBBLE_MS,
@@ -53,7 +53,8 @@ const LERP_RATE = 6;
  * 이보다 더 작은 창이면 카메라가 내 펭귄을 따라감
  */
 const MIN_SCALE = 0.25;
-const MAX_SCALE = 1.8;
+/** 4K 같은 큰 화면에서도 강의장이 화면을 채우도록 넉넉히 */
+const MAX_SCALE = 4;
 
 /** e.code 기준 — 한글 입력 상태에서도 WASD가 동작 */
 const KEY_DIR: Record<string, [number, number]> = {
@@ -404,8 +405,14 @@ export function Office() {
     const ro = new ResizeObserver(() => {
       const vw = vp.clientWidth;
       const vh = vp.clientHeight;
-      // 강의장(CAMP_VIEW) 전체가 화면에 한눈에 들어오는 배율(contain). 남는 곳엔 주변 남극 풍경이 보임
-      const fit = Math.min(vw / (CAMP_VIEW.x2 - CAMP_VIEW.x1), vh / (CAMP_VIEW.y2 - CAMP_VIEW.y1));
+      // 화면에 꽉 맞추는 배율: 꼭 보여야 하는 범위(CAMP_FOCUS)는 다 들어가게(contain) 하되,
+      // 강의장 여백(CAMP_VIEW)까지 화면을 넘치게 덮는(cover) 배율보다는 키우지 않음.
+      // 비율이 달라 남는 곳엔 주변 남극 풍경이 보임
+      const w = (r: { x1: number; x2: number }) => r.x2 - r.x1;
+      const h = (r: { y1: number; y2: number }) => r.y2 - r.y1;
+      const focusFit = Math.min(vw / w(CAMP_FOCUS), vh / h(CAMP_FOCUS));
+      const viewCover = Math.max(vw / w(CAMP_VIEW), vh / h(CAMP_VIEW));
+      const fit = Math.min(focusFit, viewCover);
       const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
       Object.assign(cam.current, { vw, vh, s });
       // 멀리서 봐도 이름표 · 말풍선 글씨가 읽히도록 화면 배율의 반대로 키움
@@ -423,6 +430,8 @@ export function Office() {
     let lastSent = 0;
     let sentMoving = false;
     let standing = false;
+    /** 첫 프레임은 카메라를 제자리에 바로 둠 (0,0 에서 미끄러져 오면 로딩 화면이 걷힐 때 맵이 움직여 겹쳐 보임) */
+    let placed = false;
 
     const tick = (t: number) => {
       const dt = Math.min(0.05, (t - last) / 1000);
@@ -527,7 +536,7 @@ export function Office() {
         }
       });
 
-      // 카메라: 강의장이 화면에 다 들어가면 강의장 가운데에 고정, 아주 작은 창이라 넘치면 내 펭귄을 따라감
+      // 카메라: 꼭 보여야 하는 범위(CAMP_FOCUS)가 화면에 다 들어가면 그 가운데에 고정, 아주 작은 창이라 넘치면 내 펭귄을 따라감
       //        그다음 풍경 밖(빈 곳)이 보이지 않게 풍경 안으로 맞춤 — 강의장은 풍경 안에 있어 계속 다 보임
       const c = cam.current;
       const world = worldRef.current;
@@ -543,10 +552,11 @@ export function Office() {
           if (L > view) pan.current[k] = o - base;
           return o;
         };
-        const ox = axis(c.vw, CAMP_VIEW.x1, CAMP_VIEW.x2, me.x + CAMP_OFFSET.x, LANDSCAPE.w, "x");
-        const oy = axis(c.vh, CAMP_VIEW.y1, CAMP_VIEW.y2, me.y + CAMP_OFFSET.y, LANDSCAPE.h, "y");
+        const ox = axis(c.vw, CAMP_FOCUS.x1, CAMP_FOCUS.x2, me.x + CAMP_OFFSET.x, LANDSCAPE.w, "x");
+        const oy = axis(c.vh, CAMP_FOCUS.y1, CAMP_FOCUS.y2, me.y + CAMP_OFFSET.y, LANDSCAPE.h, "y");
         // 끄는 동안은 손을 바로 따라오게, 그 밖에는 부드럽게
-        const follow = drag.current?.moved ? 1 : Math.min(1, dt * 8);
+        const follow = !placed || drag.current?.moved ? 1 : Math.min(1, dt * 8);
+        placed = true;
         c.ox += (ox - c.ox) * follow;
         c.oy += (oy - c.oy) * follow;
         world.style.transform = `translate3d(${c.ox.toFixed(1)}px, ${c.oy.toFixed(1)}px, 0) scale(${c.s})`;
@@ -767,7 +777,8 @@ export function Office() {
   return (
     <>
       <StudyLoading done={booted} step={loadingStep} />
-      <div className="flex h-dvh flex-col overflow-hidden bg-night" inert={!booted}>
+      {/* isolate: 맵 안의 깊이 정렬 z-index(수백~)가 이 안에서만 비교되게 — 로딩 화면 위로 올라오지 않음 */}
+      <div className="isolate flex h-dvh flex-col overflow-hidden bg-night" inert={!booted}>
       {/* 상단 바 */}
       <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/10 bg-night/80 px-4 backdrop-blur">
         <a href={LANDING_URL} onClick={exitToLanding} className="flex items-center gap-2">

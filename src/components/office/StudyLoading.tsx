@@ -26,7 +26,7 @@ const TIPS = [
   "카페석은 쉬는 자리 — 공부 시간은 책상 · 스탠딩석에서 쌓여요 ☕",
 ];
 const TIP_MS = 3200;
-const FADE_MS = 400;
+const FADE_MS = 250;
 
 /** 얼음 책상 + 책 + 핫초코 (펭귄 앞에 겹쳐 그림) */
 function Desk() {
