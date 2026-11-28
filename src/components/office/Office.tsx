@@ -433,41 +433,70 @@ export function Office() {
     return () => ro.disconnect();
   }, [conn]);
 
-  /* ---------- 마우스 휠: 확대 · 축소 (화면 맞춤의 80% ~ 120%, 마우스 위치 기준) ---------- */
-  useEffect(() => {
+  /* ---------- 확대 · 축소 (화면 맞춤의 80% ~ 120%) ---------- */
+  /** 배율을 바꿈. (cx, cy) = 기준점(뷰포트 안 좌표) — 그 아래 풍경 지점이 그 자리에 남음. 없으면 화면 가운데 */
+  const applyZoom = useCallback((target: number, at?: { cx: number; cy: number }) => {
     const vp = viewportRef.current;
-    if (!vp) return;
-    const onWheel = (e: WheelEvent) => {
-      // 창 · 패널(자료 목록, 플레이어 등) 위의 휠은 그쪽 스크롤
-      if ((e.target as HTMLElement).closest("[role=dialog], [role=alertdialog], [role=region], form")) return;
-      e.preventDefault();
-      const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? vp.clientHeight : 1; // 줄 · 페이지 단위 휠
-      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomRef.current * Math.exp(-e.deltaY * unit * ZOOM_SPEED)));
-      if (Math.abs(next - zoomRef.current) < 1e-4) return;
-      const c = cam.current;
-      const r = vp.getBoundingClientRect();
-      const cx = e.clientX - r.left;
-      const cy = e.clientY - r.top;
-      zoomAnchor.current = { cx, cy, px: (cx - c.ox) / c.s, py: (cy - c.oy) / c.s };
-      zoomRef.current = next;
-      c.s = c.fit * next;
-      worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / c.s))));
-      setZoom(Math.round(next * 100) / 100);
-      setPanned(true); // 마우스 위치 기준이라 화면도 옮겨짐 — 100%로 돌아와도 "원래 화면으로"를 보여 줌
-    };
-    vp.addEventListener("wheel", onWheel, { passive: false });
-    return () => vp.removeEventListener("wheel", onWheel);
-  }, [conn]);
+    const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, target));
+    if (!vp || Math.abs(next - zoomRef.current) < 1e-4) return;
+    const c = cam.current;
+    const cx = at?.cx ?? vp.clientWidth / 2;
+    const cy = at?.cy ?? vp.clientHeight / 2;
+    zoomAnchor.current = { cx, cy, px: (cx - c.ox) / c.s, py: (cy - c.oy) / c.s };
+    zoomRef.current = next;
+    c.s = c.fit * next;
+    worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / c.s))));
+    setZoom(Math.round(next * 100) / 100);
+    setPanned(true); // 기준점 때문에 화면도 옮겨짐 — 100%로 돌아와도 "원래 화면으로"를 보여 줌
+  }, []);
 
   /** 확대 · 축소와 배경 끌기를 처음 화면으로 */
-  const resetView = () => {
+  const resetView = useCallback(() => {
     pan.current = { x: 0, y: 0 };
     zoomRef.current = 1;
     cam.current.s = cam.current.fit;
     worldRef.current?.style.setProperty("--ui", String(Math.min(2.4, Math.max(1, 0.85 / cam.current.s))));
     setZoom(1);
     setPanned(false);
-  };
+  }, []);
+
+  /*
+   * 휠 · 핀치 · Ctrl(Cmd) +/- 는 스터디룸 확대 · 축소로.
+   * 브라우저 자체 확대(Ctrl+휠, 트랙패드 핀치, Ctrl +/-)는 사이트별로 기억돼 새로고침해도 남으므로 스터디룸에선 막음.
+   * Ctrl(Cmd)+0 은 막지 않음 — 이미 바뀌어 있던 브라우저 확대도 되돌리고 스터디룸도 처음 화면으로
+   */
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const onWheel = (e: WheelEvent) => {
+      const inMap = vp.contains(e.target as Node);
+      // 창 · 패널(자료 목록, 플레이어 등) 위의 일반 휠은 그쪽 스크롤
+      const inPanel = (e.target as HTMLElement).closest?.("[role=dialog], [role=alertdialog], [role=region], form, aside");
+      const pinch = e.ctrlKey || e.metaKey;
+      if (!pinch && (!inMap || inPanel)) return;
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? vp.clientHeight : 1; // 줄 · 페이지 단위 휠
+      // 핀치는 deltaY 가 작게 와서 더 민감하게
+      const speed = pinch && e.deltaMode === 0 ? ZOOM_SPEED * 6 : ZOOM_SPEED;
+      const r = vp.getBoundingClientRect();
+      const at = inMap && !inPanel ? { cx: e.clientX - r.left, cy: e.clientY - r.top } : undefined;
+      applyZoom(zoomRef.current * Math.exp(-e.deltaY * unit * speed), at);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (e.key === "0") return resetView(); // 브라우저 확대 되돌리기는 그대로 두고 스터디룸도 처음으로
+      const dir = e.key === "=" || e.key === "+" ? 1 : e.key === "-" || e.key === "_" ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      applyZoom(zoomRef.current * (dir > 0 ? 1.1 : 1 / 1.1));
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [conn, applyZoom, resetView]);
 
   /* ---------- 게임 루프: 이동 · 보간 · 카메라 ---------- */
   useEffect(() => {
