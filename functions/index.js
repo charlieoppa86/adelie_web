@@ -7,9 +7,11 @@
  *   3) 서로 다른 신고자가 2명 이상이면 moderation/flagged/{대상} 으로 올려 관리자에게 보임
  * 대화 정리: 비밀 대화가 끝나면(dm/sessions 삭제) 메시지를 지움. 처리 중인 신고가 있으면 신고 처리 쪽에서 지움.
  * 회원 탈퇴(7일 유예): account.js
+ * 역할 사본: users/{uid}/role 이 바뀌면 Firestore roles/{uid} 로 복사 — 📚 자료실 규칙(Firestore · Storage)이 읽음
  */
 import { initializeApp } from "firebase-admin/app";
-import { onValueCreated, onValueDeleted } from "firebase-functions/v2/database";
+import { getFirestore } from "firebase-admin/firestore";
+import { onValueCreated, onValueDeleted, onValueWritten } from "firebase-functions/v2/database";
 
 initializeApp();
 
@@ -69,4 +71,15 @@ export const onSessionEnded = onValueDeleted(opts("/dm/sessions/{sid}"), async (
   const pending = await db.child("reports/pending").orderByKey().startAt(`${sid}_`).endAt(`${sid}_`).get();
   if (pending.exists()) return; // 신고 처리 함수가 스냅샷을 뜬 뒤 지움
   await db.child(`dm/messages/${sid}`).remove();
+});
+
+/**
+ * 역할 사본 — Firestore 규칙은 Realtime Database 를 못 읽으므로 roles/{uid} 에 복사해 둠.
+ * 가입(student) · 관리자의 강사 지정 · 콘솔에서 admin 지정 · 탈퇴 정리(삭제) 모두 여기로 들어옴.
+ */
+export const syncRole = onValueWritten(opts("/users/{uid}/role"), async (event) => {
+  const role = event.data.after.val();
+  const doc = getFirestore().doc(`roles/${event.params.uid}`);
+  if (role === "teacher" || role === "admin") await doc.set({ role, at: Date.now() });
+  else await doc.delete(); // 학생 · 삭제 — 사본이 없으면 규칙이 학생으로 봄
 });

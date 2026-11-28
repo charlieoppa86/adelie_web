@@ -177,6 +177,16 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - 랜딩 히어로 배지: 지금 장면의 배지는 불빛 대신 **버튼 전체 색 채움** (유료 클래스 코랄 · 무료 스터디 블루)
   - 랜딩 로고 · OG 이미지 주소에 `?v=3` (브랜드 파일은 1시간 캐시라 같은 주소면 예전 로고가 남음 — 로고를 바꾸면 버전을 올릴 것)
   - 신청 알림 메일(`apps-script/Code.gs`)은 Apps Script 편집기에 붙여 넣고 **배포 관리 → 편집 → 새 버전**으로 갱신해야 반영 (새 배포는 URL이 바뀌어 폼이 끊김)
+- [x] **D1 📚 자료실 (샘플)** (2026-11-28, 로컬 에뮬레이터에서 검증):
+  - `/library` 별도 페이지 (스터디룸 헤더 **📚 자료실** → 새 탭). 왼쪽 자료 목록, 오른쪽 노션식 문서
+  - **노션식 블록 에디터**(Tiptap): `/` 메뉴로 제목 1~3 · 글머리/번호 목록(Tab으로 들여쓰기) · **토글** · 인용 · 코드 · 구분선 · 이미지, 글자를 고르면 굵게 · 기울임 · 취소선 · 코드 · 링크. 고치면 0.8초 뒤 자동 저장
+  - **이미지 업로드**: `/이미지`, 붙여넣기, 끌어다 놓기 → Storage `library/{자료ID}/` (10MB 미만 이미지만). 자료를 지우면 이미지도 지움
+  - **공유 범위 3단계**: 🔒 나만 보기(초안, 관리자도 못 봄) → 👩‍🏫 선생과 공유(강사 · 관리자 읽기) → 🌏 모두에게 공유(학생 읽기)
+  - **권한**: 만들기 = 강사 · 관리자 / 고치기 · 지우기 · 공유 범위 = 작성자 + 관리자(공유된 자료만, 남의 자료를 나만 보기로는 못 돌림) / 학생 = 모두에게 공유된 자료 읽기만 (토글은 펼쳐 볼 수 있음)
+  - 저장소: **Firestore** `library/{id}`(목록 정보) + `library/{id}/body/main`(본문 JSON) — 목록을 볼 때 본문은 안 받음
+  - 역할 사본: Firestore · Storage 규칙은 RTDB를 못 읽으므로 함수 **`syncRole`**이 `users/{uid}/role` → Firestore `roles/{uid}`로 복사 (학생이면 지움)
+  - 검증: `npm run test:library` (51개: 권한 표 · 목록 질의 · 이미지 업로드/삭제. dev 에뮬레이터를 끄고 실행)
+  - **운영 배포 전 할 일**: Firestore(asia-northeast3) · Storage 콘솔에서 만들기(Storage는 Blaze 요금제), `firebase deploy --only firestore,storage,functions`, 그리고 **이미 강사 · 관리자인 계정은 역할을 한 번 다시 지정**해야 사본이 생김 (함수 배포 전에 지정된 역할은 복사되지 않음)
 - 이후: 뽀모도로·통계·배지, 음성·화상, **모바일 전용 UI** (데스크톱과 다른 구성으로 따로 설계)
 
 - 2026-11-25: 화면의 역할 이름 "선생 아델리" → **"강사 아델리"** (랜딩과 통일). 내부 역할 값은 `teacher` 그대로
@@ -184,11 +194,12 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 ## 로컬 실행
 
 ```bash
-npm run dev          # Next(3000) + Firebase 에뮬레이터 (Auth·Realtime Database·Functions, 관리 화면 4000)
+npm run dev          # Next(3000) + Firebase 에뮬레이터 (Auth·Realtime Database·Firestore·Storage·Functions, 관리 화면 4000)
 npm run test:rules   # Realtime Database 보안 규칙 검증
 npm run test:room    # 접속·이동·자리·점프·말풍선·탭 이어받기·퇴장 흐름 검증
 npm run test:dm      # 비밀 대화·신고·관리자 흐름 검증
 npm run test:account # 닉네임 변경 이름표 반영 · 탈퇴 신청/거부 · 유예 끝난 계정 정리 검증
+npm run test:library # 📚 자료실 Firestore · Storage 규칙 검증 (dev 에뮬레이터를 끄고 실행)
 ```
 에뮬레이터에서는 Google 대신 가짜 계정 선택 창이 떠요. 로컬 데이터는 `.data/emulators`에 남아요(Java 필요).
 여러 펭귄으로 테스트하려면 시크릿 창이나 다른 브라우저에서 **다른 계정**으로 로그인해요. 같은 계정으로 탭을 또 열면 예전 탭이 빠져요.

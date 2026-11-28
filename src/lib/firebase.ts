@@ -8,7 +8,9 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { connectDatabaseEmulator, getDatabase, type Database } from "firebase/database";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
@@ -27,6 +29,8 @@ export const USE_EMULATORS = process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1";
 let auth: Auth | undefined;
 let db: Database | undefined;
 let fns: Functions | undefined;
+let fs: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 
 /** HMR·중복 import 시에도 앱을 한 번만 만듭니다. */
 export function firebaseApp(): FirebaseApp {
@@ -62,4 +66,22 @@ export function cloudFunctions(): Functions {
     if (USE_EMULATORS) connectFunctionsEmulator(fns, "127.0.0.1", 5001);
   }
   return fns;
+}
+
+/** Firestore — 📚 자료실 (library · roles) */
+export function firestore(): Firestore {
+  if (!fs) {
+    fs = getFirestore(firebaseApp());
+    if (USE_EMULATORS) connectFirestoreEmulator(fs, "127.0.0.1", 8080);
+  }
+  return fs;
+}
+
+/** Storage — 📚 자료실 이미지 */
+export function fileStorage(): FirebaseStorage {
+  if (!storage) {
+    storage = getStorage(firebaseApp());
+    if (USE_EMULATORS) connectStorageEmulator(storage, "127.0.0.1", 9199);
+  }
+  return storage;
 }

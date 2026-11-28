@@ -334,3 +334,58 @@ body {
   .twinkle, .bob, .fish-jump, .steam, .bubble-pop, .called-ring, .snowfall, .aurora-sway, .whale { animation: none !important; }
   .fish-jump { opacity: 0; }
 }
+
+/* ---------- 📚 자료실 문서 (Tiptap) ---------- */
+.doc-prose {
+  color: #dbe7ee;
+  font-size: 16px;
+  line-height: 1.75;
+  min-height: 40vh;
+}
+.doc-prose > * + * { margin-top: 0.35em; }
+.doc-prose h1 { margin-top: 1.6em; font-size: 1.75rem; font-weight: 800; color: #fff; line-height: 1.3; }
+.doc-prose h2 { margin-top: 1.4em; font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1.35; }
+.doc-prose h3 { margin-top: 1.2em; font-size: 1.15rem; font-weight: 700; color: #fff; }
+.doc-prose a { color: var(--color-brand-300); text-decoration: underline; text-underline-offset: 2px; }
+.doc-prose strong { color: #fff; }
+.doc-prose code { border-radius: 4px; background: rgba(255,255,255,.08); padding: 0.1em 0.35em; font-size: 0.88em; color: var(--color-coral-300); }
+.doc-prose pre { margin: 0.6em 0; border-radius: 10px; background: #0b1220; border: 1px solid rgba(255,255,255,.08); padding: 0.9em 1.1em; overflow-x: auto; }
+.doc-prose pre code { background: none; padding: 0; color: #dbe7ee; font-size: 0.85em; }
+.doc-prose blockquote { border-left: 3px solid var(--color-brand-400); padding-left: 1em; color: var(--color-ink-200); }
+.doc-prose hr { margin: 1.4em 0; border-color: rgba(255,255,255,.12); }
+.doc-prose ul { list-style: disc; padding-left: 1.6em; }
+.doc-prose ol { list-style: decimal; padding-left: 1.6em; }
+.doc-prose ol ol { list-style: lower-alpha; }
+.doc-prose ol ol ol { list-style: lower-roman; }
+.doc-prose ul ul { list-style: circle; }
+.doc-prose li > p { margin: 0.1em 0; }
+.doc-prose li::marker { color: var(--color-ink-400); }
+.doc-prose img.doc-image { margin: 0.8em 0; max-width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,.08); }
+.doc-prose img.doc-image.ProseMirror-selectednode { outline: 2px solid var(--color-brand-400); }
+.doc-prose p.is-empty::before,
+.doc-prose h1.is-empty::before,
+.doc-prose h2.is-empty::before,
+.doc-prose h3.is-empty::before,
+.doc-prose summary.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-ink-600);
+}
+.doc-prose[contenteditable="false"] .is-empty::before { content: none; }
+
+/* 토글 (노션처럼 ▸ 누르면 펼침) */
+.doc-prose .doc-toggle { display: flex; gap: 0.25em; margin: 0.2em 0; }
+.doc-prose .doc-toggle > button {
+  flex-shrink: 0; width: 1.5em; height: 1.75em; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--color-ink-300); cursor: pointer;
+}
+.doc-prose .doc-toggle > button:hover { background: rgba(255,255,255,.08); }
+.doc-prose .doc-toggle > button::before { content: "▸"; transition: transform .15s; }
+.doc-prose .doc-toggle.is-open > button::before { transform: rotate(90deg); }
+.doc-prose .doc-toggle > div { flex: 1; min-width: 0; }
+.doc-prose .doc-toggle summary { list-style: none; font-weight: 600; color: #fff; }
+.doc-prose .doc-toggle summary::-webkit-details-marker { display: none; }
+.doc-prose .doc-toggle [data-type="detailsContent"] { margin-top: 0.15em; }
+.doc-prose .doc-toggle [data-type="detailsContent"][hidden] { display: none; }

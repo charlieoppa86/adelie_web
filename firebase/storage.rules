@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// 남극캠퍼스.ai — Storage 보안 규칙
+//   library/{docId}/{file}   📚 자료실 이미지 (자료 하나당 폴더 하나)
+// 올리기 · 지우기: 그 자료를 고칠 수 있는 사람만 (Firestore 규칙과 같은 기준 — 역할 사본 roles/{uid} 를 읽음)
+// 읽기: 강사 · 관리자. 학생은 자료 본문에 박힌 다운로드 주소(추측할 수 없는 토큰 포함)로만 봄
+service firebase.storage {
+  match /b/{bucket}/o {
+    function role() {
+      let path = /databases/(default)/documents/roles/$(request.auth.uid);
+      return request.auth != null && firestore.exists(path) ? firestore.get(path).data.role : 'student';
+    }
+    function isStaff() { return role() in ['teacher', 'admin']; }
+
+    function canEdit(docId) {
+      let path = /databases/(default)/documents/library/$(docId);
+      return isStaff() && firestore.exists(path)
+        && (firestore.get(path).data.ownerId == request.auth.uid
+          || (role() == 'admin' && firestore.get(path).data.visibility != 'private'));
+    }
+
+    match /library/{docId}/{file} {
+      allow read: if isStaff();
+      allow create: if canEdit(docId)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if canEdit(docId);
+    }
+  }
+}

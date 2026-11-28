@@ -1,10 +1,95 @@
 rules_version = '2';
 
-// 남극 AI 스터디룸 — Firestore 보안 규칙
-// 계정·접속·출석은 Realtime Database(firebase/database.rules.json)로 옮겼습니다.
-// Firestore는 아직 쓰지 않으므로 모두 잠가 둡니다. (신고 기록 저장소는 F5에서 결정)
+// 남극캠퍼스.ai — Firestore 보안 규칙
+// 계정·접속·출석은 Realtime Database(firebase/database.rules.json)에 있습니다.
+// Firestore는 📚 자료실만 씁니다.
+//
+//   roles/{uid}                 역할 사본 — RTDB users/{uid}/role 이 바뀌면 함수(syncRole)가 복사. 본인만 읽기, 쓰기는 서버만
+//   library/{docId}             자료 목록 정보 (제목 · 아이콘 · 공유 범위 · 작성자 · 시각)
+//   library/{docId}/body/main   자료 본문 (에디터 JSON 문자열) — 목록을 볼 때 본문은 안 받게 따로 둠
+//
+// 공유 범위(visibility)
+//   private   🔒 나만 보기 — 작성자만 (관리자도 못 봄)
+//   teachers  👩‍🏫 선생과 공유 — 강사 · 관리자가 읽기
+//   all       🌏 모두에게 공유 — 학생까지 읽기
+// 만들기: 강사 · 관리자. 수정 · 삭제: 작성자(강사 · 관리자인 동안) + 관리자(공유된 자료만)
 service cloud.firestore {
   match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function roleDoc() { return /databases/$(db)/documents/roles/$(request.auth.uid); }
+    function role() {
+      return signedIn() && exists(roleDoc()) ? get(roleDoc()).data.role : 'student';
+    }
+    function isStaff() { return role() in ['teacher', 'admin']; }
+    function isAdmin() { return role() == 'admin'; }
+
+    function canRead(d) {
+      return signedIn() && (
+        d.visibility == 'all'
+        || (d.visibility == 'teachers' && isStaff())
+        || (d.ownerId == request.auth.uid && isStaff())
+      );
+    }
+    // 수정 · 삭제할 수 있는 사람 (d = 지금 저장된 자료)
+    function canEdit(d) {
+      return isStaff() && (d.ownerId == request.auth.uid || (isAdmin() && d.visibility != 'private'));
+    }
+
+    function validMeta(d) {
+      return d.keys().hasOnly(['title', 'icon', 'visibility', 'ownerId', 'ownerName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && d.title is string && d.title.size() <= 200
+        && d.icon is string && d.icon.size() <= 16
+        && d.visibility in ['private', 'teachers', 'all']
+        && d.ownerName is string && d.ownerName.size() <= 40
+        && d.updatedBy == request.auth.uid
+        && d.updatedByName is string && d.updatedByName.size() <= 40
+        && d.updatedAt == request.time;
+    }
+
+    match /roles/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /library/{docId} {
+      allow read: if canRead(resource.data);
+      allow create: if isStaff()
+        && validMeta(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if canEdit(resource.data)
+        && validMeta(request.resource.data)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.ownerName == resource.data.ownerName
+        && request.resource.data.createdAt == resource.data.createdAt
+        // 관리자가 남의 자료를 '나만 보기'로 돌리면 작성자 말고는 아무도 못 보게 되므로 금지
+        && (resource.data.ownerId == request.auth.uid || request.resource.data.visibility != 'private');
+      allow delete: if canEdit(resource.data);
+
+      match /body/{part} {
+        function meta() { return get(/databases/$(db)/documents/library/$(docId)).data; }
+        // 자료와 본문을 한 번에 만들 때는 '쓴 뒤의' 목록 정보로 판단
+        function metaAfter() { return getAfter(/databases/$(db)/documents/library/$(docId)).data; }
+
+        allow read: if part == 'main' && canRead(meta());
+        allow create: if part == 'main'
+          && exists(/databases/$(db)/documents/library/$(docId)) == false
+          && existsAfter(/databases/$(db)/documents/library/$(docId))
+          && metaAfter().ownerId == request.auth.uid
+          && isStaff()
+          && validBody(request.resource.data);
+        allow update: if part == 'main' && canEdit(meta()) && validBody(request.resource.data)
+          // 본문을 고치면 목록 정보의 수정 시각도 같이 바뀌어야 함 (한 번에 씀)
+          && metaAfter().updatedAt == request.time;
+        allow delete: if part == 'main' && canEdit(meta());
+
+        function validBody(b) {
+          return b.keys().hasOnly(['doc']) && b.doc is string && b.doc.size() <= 900000;
+        }
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

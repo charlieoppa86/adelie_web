@@ -755,6 +755,15 @@ export function Office() {
         </span>
         <WeatherChip weather={weather} onPreview={previewWeather} />
         <div className="ml-auto flex items-center gap-2">
+          <a
+            href="/library"
+            target="_blank"
+            rel="noopener"
+            title="수업 자료 보기 (새 탭)"
+            className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/15"
+          >
+            📚 자료실
+          </a>
           {isAdmin && (
             <button
               type="button"
