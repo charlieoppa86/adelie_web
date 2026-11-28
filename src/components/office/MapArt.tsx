@@ -5,7 +5,6 @@
 import { memo } from "react";
 import { DIVIDER_SEGMENTS, FLOOR_TRANSFORM, PROPS, SEATS, WALL_BASE, WORLD, ZONES, fy, type MapProp } from "@/shared/officeMap";
 
-const BOOKS = ["#ec7a5f", "#ffd66b", "#5ff2c1", "#2fa8d9", "#8b7bff", "#f6a894"];
 const SNOW = "#fbfeff";
 const ICE_LINE = "#9fd3ea";
 
@@ -227,44 +226,7 @@ export const MapFloor = memo(function MapFloor() {
 
       {/* ---- 빙벽 장식: 벽이 높아진 만큼 아래로 (밑선 200 → WALL_BASE) ---- */}
       <g transform={`translate(0 ${WALL_BASE - 200})`}>
-      {/* 집중석 벽: 빙벽을 깎은 책 선반 (가운데는 스터디 LIVE 스크린) */}
-      {[140, 600].map((x0) => (
-        <g key={x0}>
-          <path
-            d={`M${x0} 196V126Q${x0} 102 ${x0 + 24} 102H${x0 + 156}Q${x0 + 180} 102 ${x0 + 180} 126V196Z`}
-            fill="#2f86b8"
-            opacity=".55"
-          />
-          <path
-            d={`M${x0 + 6} 196V130Q${x0 + 6} 108 ${x0 + 26} 108H${x0 + 154}Q${x0 + 174} 108 ${x0 + 174} 130`}
-            stroke="#eaf8fe"
-            strokeWidth="2"
-            fill="none"
-            opacity=".7"
-          />
-          {[0, 1].map((row) => (
-            <g key={row}>
-              {Array.from({ length: 10 }, (_, i) => {
-                const bh = 22 + ((i + row) % 3) * 3;
-                return (
-                  <rect
-                    key={i}
-                    x={x0 + 14 + i * 15.5}
-                    y={148 + row * 38 - bh}
-                    width={11 + ((i + row) % 2) * 2}
-                    height={bh}
-                    rx="2"
-                    fill={BOOKS[(i + row * 2) % BOOKS.length]}
-                    opacity=".92"
-                  />
-                );
-              })}
-              <rect x={x0 + 8} y={148 + row * 38} width="164" height="6" rx="3" fill="#e6f6fc" />
-            </g>
-          ))}
-        </g>
-      ))}
-      {/* 두 선반 사이(가운데)는 스터디 LIVE 스크린 자리 — LectureScreen.tsx 가 그 위에 그림 (LECTURE_SCREEN) */}
+      {/* 집중석 벽: 왼쪽 📚 자료 보드 + 오른쪽 📺 스터디 LIVE — HTML 로 그 위에 그림 (LibraryBoard.tsx · LectureScreen.tsx, 좌표는 officeMap) */}
 
       {/* 스탠딩석 벽: 얼음 목표판 */}
       <g>

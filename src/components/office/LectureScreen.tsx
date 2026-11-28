@@ -69,6 +69,49 @@ function StatusTag({ b, size = 10 }: { b: Broadcast; size?: number }) {
   );
 }
 
+/** 영상 키비주얼 색 (자료 보드의 책 색과 같은 팔레트) */
+const FRAMES = ["#2fa8d9", "#8b7bff", "#5ff2c1", "#ffd66b", "#ec7a5f"];
+
+/**
+ * 스크린 윗부분 키비주얼: 필름 한 줄 + 가운데 재생 버튼 (자료 보드의 책 한 줄 + 선반과 같은 자리 · 크기).
+ * 강의 중이면 가운데에 LIVE / ▶ 녹화 영상 표시
+ */
+function VideoVisual({ b }: { b: Broadcast | null }) {
+  const live = b?.mode === "live";
+  return (
+    <>
+      <div className="pointer-events-none relative mx-3 mt-3 h-[30px] overflow-hidden rounded-[3px] bg-[#16324a]" aria-hidden={!b}>
+        {/* 필름 구멍 (위 · 아래) */}
+        <span className="absolute inset-x-0 top-[2px] h-[3px] bg-[repeating-linear-gradient(90deg,#e6f6fc_0_4px,transparent_4px_9px)] opacity-60" />
+        <span className="absolute inset-x-0 bottom-[2px] h-[3px] bg-[repeating-linear-gradient(90deg,#e6f6fc_0_4px,transparent_4px_9px)] opacity-60" />
+        {/* 장면 칸 */}
+        <div className="absolute inset-x-1 top-[7px] flex h-4 gap-[3px]">
+          {FRAMES.map((c, i) => (
+            <span
+              key={i}
+              className="flex-1 rounded-[2px]"
+              style={{ background: `linear-gradient(160deg, ${c}, ${c}66)`, opacity: live ? 0.55 : 0.85 }}
+            />
+          ))}
+        </div>
+        {/* 가운데: 재생 버튼 또는 방송 상태 */}
+        <div className="absolute inset-0 grid place-items-center">
+          {b ? (
+            <span className="rounded-full bg-[#0b2a44]/90 px-2 py-0.5 text-[10px]">
+              <StatusTag b={b} size={8} />
+            </span>
+          ) : (
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-white/95 shadow">
+              <span className="ml-[2px] h-0 w-0 border-y-[5px] border-l-[8px] border-y-transparent border-l-[#0b2a44]" />
+            </span>
+          )}
+        </div>
+      </div>
+      <span className="pointer-events-none mx-2 h-1.5 rounded-full bg-[#e6f6fc]" />
+    </>
+  );
+}
+
 /** 맵 위의 스터디 LIVE 스크린 (공부 캠프 좌표) */
 export function LectureScreen(props: {
   broadcast: Broadcast | null;
@@ -95,25 +138,22 @@ export function LectureScreen(props: {
     >
       {/* 눈 처마 */}
       <span className="pointer-events-none absolute inset-x-1 -top-1 h-2 rounded-full bg-[#fbfeff]" />
+      <VideoVisual b={b} />
       {b ? (
         <div
-          className={`flex flex-1 flex-col items-center justify-center gap-1.5 px-3 text-center ${
+          className={`flex flex-1 flex-col items-center justify-center gap-1 px-3 text-center ${
             live ? "bg-[radial-gradient(circle_at_50%_30%,rgba(239,68,68,.22),transparent_70%)]" : ""
           }`}
         >
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <StatusTag b={b} />
-            {live && <span className="font-bold text-ink-300">· {lectureLabel(b.kind, b.mode)}</span>}
-            <span className="font-bold text-ink-400" title="이 시각에 자동으로 끝나요">
-              · ⏱ {formatEndsAt(b.endsAt)}까지
+          <p className="flex max-w-full items-center gap-1 text-[13px] font-extrabold text-white" title={b.hostName}>
+            <span className="truncate">🎙️ {b.hostName}</span>
+            <span className="shrink-0 text-[11px] font-bold text-[#8fd1ec]" title="이 시각에 자동으로 끝나요">
+              · ⏱ {formatEndsAt(b.endsAt)}
             </span>
-          </div>
-          <p className="max-w-full truncate text-[15px] font-extrabold text-white" title={b.hostName}>
-            🎙️ {b.hostName}
           </p>
           {props.watchers > 0 && (
-            <p className="-mt-1 text-[11px] font-bold text-aurora-green" title="출석부에서 🕶️ 표시로 누가 보는지 볼 수 있어요">
-              🕶️ {props.watchers}명 시청 중
+            <p className="-mt-0.5 text-[10px] font-bold text-aurora-green" title="출석부에서 🕶️ 표시로 누가 보는지 볼 수 있어요">
+              🕶️ {props.watchers}명 시청 중{live && <span className="text-ink-300"> · {lectureLabel(b.kind, b.mode)}</span>}
             </p>
           )}
           <div className="flex gap-1.5">
@@ -148,8 +188,8 @@ export function LectureScreen(props: {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-3 text-center">
-          <p className="text-[13px] font-extrabold tracking-wide text-[#bfe6f6]">📺 스터디 LIVE</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-3 text-center">
+          <p className="text-[13px] font-extrabold tracking-wide text-[#e6f6fc]">📺 스터디 LIVE</p>
           {props.isAdmin ? (
             <button
               type="button"
@@ -159,7 +199,7 @@ export function LectureScreen(props: {
               ＋ 강의 만들기
             </button>
           ) : (
-            <p className="text-[11px] font-bold text-[#8fd1ec]">강의가 열리면 여기에 떠요</p>
+            <p className="py-1.5 text-xs font-bold text-[#8fd1ec]">강의가 열리면 여기에 떠요</p>
           )}
         </div>
       )}

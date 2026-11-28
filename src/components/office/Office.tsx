@@ -26,6 +26,7 @@ import { CHAT_KEEP, ChatFeed, type ChatLine, type ChatLineInput } from "./ChatFe
 import { Composer, type ComposerHandle } from "./Composer";
 import { Landscape } from "./Landscape";
 import { CreateLectureDialog, EndLectureDialog, LecturePlayer, LectureScreen, formatEndsAt, openLectureWindow } from "./LectureScreen";
+import { LibraryBoard, LibraryListDialog, useSharedLibrary } from "./LibraryBoard";
 import { MapFloor, MapProps } from "./MapArt";
 import { IncomingRequestCard, OutgoingRequestCard, SecretChatPanel } from "./SecretChat";
 import { SidePanel, type SideTab } from "./SidePanel";
@@ -103,6 +104,8 @@ export function Office() {
   const [popupOpen, setPopupOpen] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const [endOpen, setEndOpen] = useState(false);
+  /** 📚 자료 보드 → 모두에게 공유된 자료 목록 창 */
+  const [libraryOpen, setLibraryOpen] = useState(false);
   /** 내가 방금 끝낸 강의 — 시청자용 "강의가 끝났어요" 알림을 띄우지 않으려고 */
   const selfEndedRef = useRef(false);
   const dmRef = useRef<DmHandle | null>(null);
@@ -619,6 +622,8 @@ export function Office() {
 
   const selected = selectedId ? list.find((p) => p.id === selectedId) : undefined;
   const isAdmin = me?.role === "admin";
+  const shared = useSharedLibrary(!!selfId);
+  const closeLibrary = useCallback(() => setLibraryOpen(false), []);
   const watchLecture = () => {
     if (!broadcast) return;
     if (broadcast.kind === "youtube") {
@@ -881,6 +886,7 @@ export function Office() {
               <div className="absolute" style={{ left: CAMP_OFFSET.x, top: CAMP_OFFSET.y, width: WORLD.w, height: WORLD.h }}>
                 <MapFloor />
                 <MapProps />
+                <LibraryBoard count={shared.docs?.length ?? null} onOpen={() => setLibraryOpen(true)} />
                 <LectureScreen
                   broadcast={broadcast}
                   isAdmin={isAdmin && conn === "ready"}
@@ -1074,6 +1080,7 @@ export function Office() {
                 }}
               />
             )}
+            {libraryOpen && <LibraryListDialog docs={shared.docs} error={shared.error} onClose={closeLibrary} />}
             {endOpen && isAdmin && broadcast && (
               <EndLectureDialog broadcast={broadcast} onEnd={endLecture} onReplay={replayLecture} onClose={() => setEndOpen(false)} />
             )}

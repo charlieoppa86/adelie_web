@@ -58,10 +58,12 @@ export const DOORWAYS: [number, number][] = [
 export const SPAWN = { x: 938, y: fy(905) } as const;
 
 /**
- * 집중 개인석 벽, 두 책 선반 사이의 "스터디 LIVE" 스크린 (강의 표시 · 강의 만들기).
+ * 집중 개인석 벽의 두 핵심 판: 왼쪽 📚 자료 보드 + 오른쪽 📺 스터디 LIVE 스크린.
+ * 같은 높이 · 같은 윗선, 사이 간격 60. 둘을 합친 가운데(450)가 가운데 책상 줄(452)과 맞음.
  * 아래쪽은 예전 "집중 개인석" 명판 자리(빙벽 밑선 아래 13px)까지 내려옴
  */
-export const LECTURE_SCREEN = { x: 330, y: 96, w: 260, h: 130 } as const;
+export const LIBRARY_BOARD = { x: 180, y: 96, w: 220, h: 130 } as const;
+export const LECTURE_SCREEN = { x: 460, y: 96, w: 260, h: 130 } as const;
 
 export type SeatKind = "desk" | "standing" | "cafe" | "sofa";
 

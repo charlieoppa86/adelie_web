@@ -101,6 +101,15 @@ export function watchLibrary(me: Me, cb: (docs: LibraryDoc[]) => void, onError: 
   return () => stops.forEach((s) => s());
 }
 
+/** 🌏 모두에게 공유된 자료만 (스터디룸 자료 보드 — 학생부터 관리자까지 같은 목록). 최신순 */
+export function watchSharedLibrary(cb: (docs: LibraryDoc[]) => void, onError: (e: Error) => void): () => void {
+  return onSnapshot(
+    query(collection(firestore(), "library"), where("visibility", "==", "all")),
+    (snap) => cb(snap.docs.map(toDoc).sort((a, b) => b.createdAt - a.createdAt)),
+    onError,
+  );
+}
+
 /** 본문을 지켜봄 (다른 사람이 고치면 읽는 사람 화면도 바뀜). null = 아직 본문 없음 */
 export function watchBody(id: string, cb: (json: string | null, fromMe: boolean) => void, onError: (e: Error) => void): () => void {
   return onSnapshot(
