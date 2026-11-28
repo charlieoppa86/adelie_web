@@ -1,4 +1,6 @@
-# 남극 AI 스터디룸 — 구현 로드맵
+# 남극캠퍼스.ai 스터디룸 — 구현 로드맵
+
+> 서비스명: **남극캠퍼스.ai** (2026-11-28, 이전 이름 "남극AI빌리지")
 
 랜딩(`~/Developer/landing/adelie_landing`)에서 들어온 사용자가 남극 배경의 가상 스터디룸에 펭귄으로 입장해,
 선생·학생 펭귄이 함께 공부하는 모습과 출석 현황을 실시간으로 보고, 말풍선·비밀 대화로 소통하는 공간.
@@ -93,7 +95,7 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 로그인은 원래 마지막 단계였지만, 보안 규칙이 "누구인지"를 기준으로 동작하므로 F1으로 앞당겼습니다.
 
 - [x] **F1 Google 로그인**:
-  - 입장 화면: Google로 입장 → 처음이면 닉네임 정하기(중복 불가, 대소문자만 달라도 중복, 변경 불가) → 입장
+  - 입장 화면: Google로 입장 → 처음이면 닉네임 정하기(중복 불가, 대소문자만 달라도 중복) → 입장. 닉네임 변경은 A1 참고
   - `users/{uid}`(닉네임·역할) + `nicknames/{소문자 닉네임}`(예약)을 한 번에 생성. 역할은 항상 student로 시작
     - 처음엔 Firestore에 뒀다가 F2에서 Realtime Database로 옮김: 스터디룸 규칙이 "입장한 이름 = 내 프로필 이름"을 확인하려면 같은 DB에 있어야 함
   - 로그인하지 않으면 `/office`에서 입장 화면으로 돌려보냄
@@ -120,7 +122,7 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
 - [x] **F6 배포** (2026-11-25):
   - 스터디룸: https://adelie-web--adelie-8e417.asia-southeast1.hosted.app (Firebase App Hosting, 백엔드 `adelie-web`, `main`에 push하면 자동 배포, 설정은 `apphosting.yaml`)
   - Realtime Database `adelie-8e417-default-rtdb` (asia-southeast1 싱가포르 — RTDB는 서울 리전이 없음). 규칙 배포: `firebase deploy --only database`
-  - Cloud Functions `onReport`·`onSessionEnded` (asia-southeast1, DB와 같은 리전). 배포: `npx firebase-tools@latest deploy --only functions` (설치된 CLI 13.15는 Extensions API 검사에 막힘). 오래된 컨테이너 이미지는 1일 뒤 자동 삭제
+  - Cloud Functions `onReport`·`onSessionEnded`·`requestAccountDeletion`·`purgeDeletedAccounts` (asia-southeast1, DB와 같은 리전). 배포: `npx firebase-tools@latest deploy --only functions` (설치된 CLI 13.15는 Extensions API 검사에 막힘). 오래된 컨테이너 이미지는 1일 뒤 자동 삭제
   - 랜딩(Vercel `adelie-ai`): 상단 메뉴·모바일 메뉴·무료 스터디 카드에 "스터디룸 입장" 링크
 - [x] **B1 스터디 LIVE** (2026-11-28, 비용 0):
   - 집중 개인석 벽의 "쉿! 집중 중" 표지판 자리를 **스터디 LIVE** 스크린으로 바꿈 (`LECTURE_SCREEN`, `LectureScreen.tsx`)
@@ -143,6 +145,24 @@ Socket.IO 서버(`realtime/`)를 없애고 Firebase로 옮깁니다. 웹은 Fire
   - 공부 공간(빙벽 아래 바닥) **세로 20% 축소**, 빙벽 **10% 높임** — 바닥 좌표는 처음 설계 좌표를 `fy()`로 옮기고, 바닥 그림은 같은 변환(`FLOOR_TRANSFORM`)을 씀
   - 캠프 아래쪽 끝은 그대로 두고 줄어든 만큼 **뒤쪽 설산 · 내륙 빙상 고원**(누나탁 · 탐험대 캠프 · 황제펭귄 행렬)이 더 보이게
   - 가운데 "스탠딩석" 명판 삭제, 빈 자리 점선 원을 더 진하게
+- [x] **A1 닉네임 변경 · 회원 탈퇴** (2026-11-28):
+  - 스터디룸 헤더의 **👤 내 닉네임** 버튼 → "내 정보" 창 (`AccountDialog.tsx`)
+  - **닉네임 변경: 30일에 2번까지** — `users/{uid}/nameChangedAt`(마지막) · `prevNameChangedAt`(그 전) 두 시각으로 규칙이 셈 (`prev`가 30일 지나야 다음 변경, 바꿀 때 `prev`를 반드시 밀어내야 함)
+    - 새 닉네임 예약 + 이름 + 변경 시각을 한 번에 씀. 스터디룸 이름표는 `room.ts`가 프로필 이름을 지켜보다 따라 바꿈
+    - **옛 닉네임은 중복 금지**: 예약(`nicknames/…`)을 지우지 않아 다른 펭귄은 영구히 못 씀. 본인은 그 이름으로 돌아갈 수 있음
+  - **회원 탈퇴: 7일 유예**
+    - 닉네임 입력 → 구글 재확인 → 호출형 함수 `requestAccountDeletion`이 `users/{uid}/deleteAt` = 지금 + 7일 (이 값은 서버만 씀, 본인은 지우기만 = 탈퇴 취소)
+    - 관리자 · 퇴장(정지) 중이면 신청 거부. 유예 중엔 규칙이 스터디룸 입장 · 닉네임 변경 · 비밀 대화 신청 받기를 막음
+    - 다시 로그인하면 입장 화면에 "탈퇴 취소하고 돌아가기". 다른 탭은 `deleteAt`을 보고 스터디룸에서 나감
+    - 예약 함수 `purgeDeletedAccounts`(매시간, Cloud Scheduler)가 유예 끝난 계정 정리: 프로필 · 출석 기록 · 스터디룸 흔적 · 비밀 대화 신청/진행 · 정지 기록 · 로그인 계정 삭제
+    - **남기는 것**: 닉네임 예약(사칭 방지 — 같은 구글 계정으로 재가입해도 예전 닉네임은 못 씀), 신고 검토 기록(`moderation`)
+  - 검증: `npm run test:rules` (95개 항목, 닉네임·탈퇴 21개), `npm run test:account` (15개: 이름표 반영 · 탈퇴 신청/거부 · 정리)
+- [x] **브랜드 변경** (2026-11-28): 남극AI빌리지 → **남극캠퍼스.ai** (웹 · 랜딩 전체, 탭 제목 · 공유 미리보기 · 매니페스트)
+  - 로고 재생성(랜딩 `tools/build-brand.js`): '남극캠퍼스' 얼음 결정면 + '.ai' 오로라. 웹 `public/brand/`에도 복사
+  - 랜딩 소개글: "AI를 공부하는 직장인을 위한 온라인 스터디룸, 남극의 가상 이글루에서 펭귄들과 함께 공부하고 라이브 강의도 참여해 보세요!"
+  - 랜딩 히어로 배지: 지금 장면의 배지는 불빛 대신 **버튼 전체 색 채움** (유료 클래스 코랄 · 무료 스터디 블루)
+  - 랜딩 로고 · OG 이미지 주소에 `?v=3` (브랜드 파일은 1시간 캐시라 같은 주소면 예전 로고가 남음 — 로고를 바꾸면 버전을 올릴 것)
+  - 신청 알림 메일(`apps-script/Code.gs`)은 Apps Script 편집기에 붙여 넣고 **배포 관리 → 편집 → 새 버전**으로 갱신해야 반영 (새 배포는 URL이 바뀌어 폼이 끊김)
 - 이후: 뽀모도로·통계·배지, 음성·화상, **모바일 전용 UI** (데스크톱과 다른 구성으로 따로 설계)
 
 - 2026-11-25: 화면의 역할 이름 "선생 아델리" → **"강사 아델리"** (랜딩과 통일). 내부 역할 값은 `teacher` 그대로
@@ -154,6 +174,7 @@ npm run dev          # Next(3000) + Firebase 에뮬레이터 (Auth·Realtime Dat
 npm run test:rules   # Realtime Database 보안 규칙 검증
 npm run test:room    # 접속·이동·자리·점프·말풍선·탭 이어받기·퇴장 흐름 검증
 npm run test:dm      # 비밀 대화·신고·관리자 흐름 검증
+npm run test:account # 닉네임 변경 이름표 반영 · 탈퇴 신청/거부 · 유예 끝난 계정 정리 검증
 ```
 에뮬레이터에서는 Google 대신 가짜 계정 선택 창이 떠요. 로컬 데이터는 `.data/emulators`에 남아요(Java 필요).
 여러 펭귄으로 테스트하려면 시크릿 창이나 다른 브라우저에서 **다른 계정**으로 로그인해요. 같은 계정으로 탭을 또 열면 예전 탭이 빠져요.
